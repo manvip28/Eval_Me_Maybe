@@ -37,8 +37,6 @@ DEFAULT_TEMPERATURE=0.7
 # Optional: Poppler path (Windows only - uncomment and update if Poppler is not in PATH)
 # POPPLER_PATH=C:\poppler\Library\bin
 
-# Optional: Tesseract OCR path (Windows only - uncomment and update if Tesseract is not in PATH)
-# TESSDATA_PREFIX=C:\Program Files\Tesseract-OCR\tessdata
 ```
 
 ### 3. Get API Keys
@@ -54,36 +52,10 @@ DEFAULT_TEMPERATURE=0.7
 3. Get your endpoint and key
 4. Add them to your `.env` file
 
-### 4. Install OCR and PDF Processing Tools
+### 4. Install PDF Processing Tools
 
-The project uses OCR (Optical Character Recognition) and PDF processing tools that require separate installation.
+The project uses PDF processing tools that require separate installation.
 
-#### Tesseract OCR
-
-**Windows:**
-1. Download Tesseract installer from [GitHub Releases](https://github.com/UB-Mannheim/tesseract/wiki)
-2. Install the `.exe` file (recommended: `tesseract-ocr-w64-setup-*.exe`)
-3. During installation, remember the installation path (default: `C:\Program Files\Tesseract-OCR`)
-4. Add Tesseract to your system PATH:
-   - Open "Environment Variables" in System Properties
-   - Add `C:\Program Files\Tesseract-OCR` to the PATH variable
-   - Or add to your `.env` file: `TESSDATA_PREFIX=C:\Program Files\Tesseract-OCR\tessdata`
-
-**macOS:**
-```bash
-brew install tesseract
-```
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt-get update
-sudo apt-get install tesseract-ocr
-```
-
-**Linux (Fedora):**
-```bash
-sudo dnf install tesseract
-```
 
 #### Poppler (for PDF to Image Conversion)
 
@@ -128,8 +100,6 @@ sudo dnf install poppler-utils
 After installation, verify that the tools are accessible:
 
 ```bash
-# Check Tesseract
-tesseract --version
 
 # Check Poppler (if in PATH)
 pdftoppm -h
@@ -264,7 +234,6 @@ This will launch a web interface where you can:
    - Run `pip install -r requirements.txt`
    - Download spaCy model: `python -m spacy download en_core_web_sm`
    - Download NLTK data: `python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"`
-   - Ensure Tesseract OCR is installed and accessible
    - Ensure Poppler is installed (for PDF to image conversion on Windows)
    - Install PyMuPDF for image extraction: `pip install PyMuPDF`
 
@@ -276,49 +245,31 @@ This will launch a web interface where you can:
    - If using `.env`, ensure `POPPLER_PATH` is set correctly
    - Test Poppler manually: `pdftoppm -h` (or `C:\poppler\Library\bin\pdftoppm.exe -h` on Windows)
 
-4. **OCR Issues (Tesseract)**
-   - Verify Tesseract is installed: `tesseract --version`
-   - Check if Tesseract is in your PATH
-   - On Windows, ensure `TESSDATA_PREFIX` points to the `tessdata` folder
-   - If pytesseract can't find Tesseract, set the path manually:
-     ```python
-     import pytesseract
-     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-     ```
-
-5. **spaCy Model Issues**
+4. **spaCy Model Issues**
    - If you get "Can't find model 'en_core_web_sm'", download it:
      ```bash
      python -m spacy download en_core_web_sm
      ```
    - Verify installation: `python -c "import spacy; spacy.load('en_core_web_sm')"`
 
-6. **NLTK Data Issues**
+5. **NLTK Data Issues**
    - If NLTK data download fails, download manually:
      ```bash
      python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
      ```
    - On some systems, NLTK may require additional data - check error messages
 
-7. **Memory Issues**
+6. **Memory Issues**
    - Reduce batch sizes for large documents
    - Use smaller models for limited resources
    - First-time model downloads can use significant disk space (1-2 GB)
    - Ensure sufficient RAM for large documents (recommended: 8GB+)
 
-8. **Model Download Issues**
+7. **Model Download Issues**
    - Ensure stable internet connection for first-time model downloads
    - Sentence Transformer and CLIP models are large (500MB-1GB)
    - Models download automatically on first use - be patient
    - If downloads fail, check firewall/antivirus settings
-
-### Debug Mode
-
-Enable debug logging by setting environment variable:
-```bash
-export DEBUG=1
-```
-Then run either `python main.py` or `streamlit run app.py`
 
 ## Contributing
 
