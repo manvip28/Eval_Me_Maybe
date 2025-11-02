@@ -1,0 +1,108 @@
+Remember:
+  1: |
+    Create a 1-mark recall question testing basic terminology knowledge.
+    Focus on: {{keywords|join(', ')}}
+    Content: "{{chunk}}"
+    Format: Multiple choice with 4 options
+    IMPORTANT: Output ONLY the question text, no prefixes, no formatting, no explanations.
+    Example: "What is the primary component of an embedded system?"
+  
+  2: |
+    Generate a 2-mark factual recall question with specific details.
+    Required terms: {{keywords|join(', ')}}
+    Context: "{{chunk}}"
+    Format: Short answer (1-2 words)
+    IMPORTANT: Output ONLY the question text, no prefixes, no formatting, no explanations.
+    Example: "What are the three main components of an embedded system?"
+
+Understand:
+  2: |
+    Create a 2-mark comprehension question about relationships between concepts.
+    Key concepts: {{keywords}}
+    Content: "{{chunk}}"
+    Format: Explain in one sentence
+    Focus on: How {{keywords[0]}} relates to {{keywords[1]}}
+    IMPORTANT: Output ONLY the question text, no prefixes, no formatting, no explanations.
+    Example: "How do hardware and software components work together in an embedded system?"
+  
+  5: |
+    Generate a 5-mark understanding question requiring conceptual explanation.
+    Context: "{{chunk}}"
+    Must include: {{keywords|join(', ')}}
+    Format: Paragraph explanation (50-100 words)
+    Test: Ability to synthesize key ideas
+    IMPORTANT: Output ONLY the question text, no prefixes, no formatting, no explanations.
+    Example: "Explain the relationship between embedded systems and real-time processing requirements."
+  
+  10: |
+    Create a comprehensive 10-mark question testing deep understanding.
+    Content: "{{chunk}}"
+    Keywords: {{keywords}}
+    Format: Extended response (200-300 words)
+    Focus: Comparing and contrasting multiple concepts
+
+Apply:
+  3: |
+    Generate a 3-mark application question in a specific scenario.
+    Context: "{{chunk}}"
+    Required application: {{keywords|join(', ')}}
+    Format: Short practical solution
+    Scenario: "Given [situation], how would you use {{keywords[0]}} to solve this?"
+
+  5: |
+    Create a 5-mark application problem requiring multi-step solution.
+    Content: "{{chunk}}"
+    Key concepts: {{keywords}}
+    Format: Step-by-step procedure
+    Scenario: Practical implementation challenge
+  10: |
+    Create a comprehensive 10-mark question that requires multi step solution.
+    Content: "{{chunk}}"
+    Keywords: {{keywords}}
+    Format: Extended response (200-300 words)
+    Focus: Comparing and contrasting multiple concepts
+
+Analyze:
+  5: |
+    Generate a 5-mark analysis question examining components.
+    Content: "{{chunk}}"
+    Focus: Structure of {{keywords[0]}}
+    Format: Break down into key elements
+    Required: Identify at least 3 components
+    
+  8: |
+    Create an 8-mark analysis question comparing complex systems.
+    Context: "{{chunk}}"
+    Comparison targets: {{keywords[0]}} vs {{keywords[1]}}
+    Format: Table or structured comparison
+    Criteria: Functionality, advantages, limitations
+
+Evaluate:
+  8: |
+    Generate an 8-mark evaluation question judging effectiveness.
+    Context: "{{chunk}}"
+    Subject: {{keywords[0]}}
+    Format: Critical assessment with criteria
+    Required: Pros/cons, alternative suggestions
+    
+  10: |
+    Create a 10-mark evaluation question for decision-making.
+    Content: "{{chunk}}"
+    Options: {{keywords|slice(3)|join(', ')}}
+    Format: Justified recommendation
+    Scenario: "Which approach would you choose for [situation] and why?"
+
+Create:
+  10: |
+    Generate a 10-mark creation question designing a solution.
+    Context: "{{chunk}}"
+    Components: {{keywords|join(', ')}}
+    Format: Outline/blueprint
+    Scenario: "Design a system using {{keywords[0]}} and {{keywords[1]}}"
+    
+  15: |
+    Create a comprehensive 15-mark creation question.
+    Content: "{{chunk}}"
+    Required elements: {{keywords|slice(5)|join(', ')}}
+    Format: Complete proposal
+    Output: Detailed plan with implementation steps
