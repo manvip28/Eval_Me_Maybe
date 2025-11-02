@@ -17,7 +17,7 @@ class ImageAssociator:
         self.docx_path = docx_path
         self.output_dir = Path(output_dir)
         self.diagrams_dir = self.output_dir / "diagrams"
-        self.diagrams_dir.mkdir(parents=True, exist_ok=True)
+        # self.diagrams_dir.mkdir(parents=True, exist_ok=True)  # Commented out - using Azure blob storage only
         
         # Store extracted images with metadata
         self.extracted_images = []
@@ -74,14 +74,24 @@ class ImageAssociator:
                     
                     # Save image
                     img_filename = f"diagram_{len(self.extracted_images)}.png"
-                    img_path = self.diagrams_dir / img_filename
+                    img_blob_path = f"answer_key_gen/diagrams/{img_filename}"
                     
-                    with open(img_path, 'wb') as f:
-                        f.write(image_data)
+                    # Upload to Azure blob storage ONLY
+                    try:
+                        from storage import get_storage_client
+                        storage = get_storage_client()
+                        if not storage.is_blob_storage():
+                            print(f"⚠️ Blob storage not configured, skipping diagram: {img_blob_path}")
+                            continue
+                        
+                        storage.write_file(img_blob_path, image_data)
+                        print(f"✅ Saved diagram to Azure blob storage: {img_blob_path}")
+                    except Exception as e:
+                        print(f"❌ Failed to upload diagram to blob storage: {e}")
                     
                     # Store image metadata
                     self.extracted_images.append({
-                        "path": str(img_path),
+                        "blob_path": img_blob_path,
                         "page": 0,  # DOCX doesn't have pages
                         "context": context,
                         "filename": img_filename,
@@ -270,15 +280,30 @@ class ImageAssociator:
             safe_question = re.sub(r'[-\s]+', '_', safe_question)
             
             new_filename = f"diagram_{question_id}_{safe_question}.png"
-            new_path = self.diagrams_dir / new_filename
+            new_blob_path = f"answer_key_gen/diagrams/{new_filename}"
             
-            # Rename the file
+            # Upload renamed diagram to Azure blob storage ONLY
+            # First get the original blob path
+            original_blob_path = image.get('blob_path', f"answer_key_gen/diagrams/{image['filename']}")
+            
             try:
-                os.rename(image['path'], str(new_path))
-                image['path'] = str(new_path)
-                image['filename'] = new_filename
-            except:
-                pass  # Keep original if rename fails
+                from storage import get_storage_client
+                storage = get_storage_client()
+                if not storage.is_blob_storage():
+                    # Can't rename, keep original
+                    return f"./answer_key_gen/diagrams/{image['filename']}"
+                
+                # Read original from blob, upload with new name
+                if storage.exists(original_blob_path):
+                    image_data = storage.read_file(original_blob_path)
+                    storage.write_file(new_blob_path, image_data)
+                    print(f"✅ Saved renamed diagram to Azure blob storage: {new_blob_path}")
+                    image['filename'] = new_filename
+                    image['blob_path'] = new_blob_path
+            except Exception as e:
+                print(f"⚠️ Failed to rename diagram in blob storage: {e}")
+                # Keep original path
+                return f"./answer_key_gen/diagrams/{image['filename']}"
             
             # Return relative path for JSON
             return f"./answer_key_gen/diagrams/{new_filename}"

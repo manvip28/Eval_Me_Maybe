@@ -182,13 +182,45 @@ def process_question_generation(uploaded_file, questions_per_topic: int):
             details_text = st.empty()
             
             # Show initial status
-            status_text.text("📁 Saving uploaded file...")
-            details_text.text(f"Processing {uploaded_file.name} ({uploaded_file.size} bytes)")
+            status_text.text("📁 Loading file from Azure blob storage...")
             
-            # Create temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
-                tmp_file.write(uploaded_file.getbuffer())
-                temp_file_path = tmp_file.name
+            # Get blob path from session state (should be set during upload)
+            blob_path = st.session_state.get('textbook_blob_path')
+            
+            # Load from Azure blob storage ONLY
+            if not blob_path or not blob_path.startswith("uploads/"):
+                st.error("❌ Textbook not found in Azure blob storage. Please upload the file again.")
+                return
+            
+            try:
+                from storage import get_storage_client
+                storage = get_storage_client()
+                if not storage.is_blob_storage():
+                    st.error("❌ Blob storage is not configured. Please configure Azure storage.")
+                    return
+                
+                if not storage.exists(blob_path):
+                    st.error(f"❌ File not found in Azure blob storage: {blob_path}")
+                    return
+                
+                # Download from blob storage to temp file (libraries need local files)
+                status_text.text("📥 Downloading file from Azure blob storage...")
+                file_data = storage.read_file(blob_path)
+                
+                # Create temporary file (needed for processing - libraries require local files)
+                file_extension = Path(blob_path).suffix or Path(uploaded_file.name).suffix if uploaded_file else ".docx"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
+                    tmp_file.write(file_data)
+                    temp_file_path = tmp_file.name
+                
+                status_text.text("✅ File loaded from Azure blob storage")
+                details_text.text(f"Processing {blob_path} ({len(file_data)} bytes)")
+            except Exception as e:
+                st.error(f"❌ Failed to load file from Azure blob storage: {str(e)}")
+                import traceback
+                with st.expander("🔍 Error Details", expanded=False):
+                    st.code(traceback.format_exc())
+                return
             
             # Update status
             status_text.text("📚 Extracting topics from textbook...")
@@ -227,30 +259,45 @@ def process_question_generation(uploaded_file, questions_per_topic: int):
                 status_text.text("📝 Loading generated questions...")
                 details_text.text("Processing generated questions...")
                 
-                # Load the intermediate questions
-                answer_key_gen_dir = Path("answer_key_gen")
-                answer_key_gen_dir.mkdir(exist_ok=True)
-                intermediate_path = answer_key_gen_dir / "intermediate_questions.json"
-                if intermediate_path.exists():
-                    with open(intermediate_path, 'r', encoding='utf-8') as f:
-                        questions = json.load(f)
+                # Load the intermediate questions from Azure blob storage ONLY
+                intermediate_path_str = "answer_key_gen/intermediate_questions.json"
+                questions = None
+                
+                # Load from Azure blob storage ONLY
+                try:
+                    import sys
+                    project_root = Path(__file__).parent.parent.parent.parent
+                    if str(project_root) not in sys.path:
+                        sys.path.insert(0, str(project_root))
+                    from storage import get_storage_client
+                    storage = get_storage_client()
                     
-                    # Ensure all questions default to approved (approved: True)
-                    for question in questions:
-                        question['approved'] = True
+                    if not storage.is_blob_storage():
+                        st.error("❌ Blob storage is not configured. Please configure Azure storage.")
+                        return
                     
-                    # Store in session state for manual review
-                    st.session_state.generated_questions = questions
-                    
-                    # Clear the loading container and show success
+                    if storage.exists(intermediate_path_str):
+                        questions = storage.read_json(intermediate_path_str)
+                        
+                        # Ensure all questions default to approved (approved: True)
+                        for question in questions:
+                            question['approved'] = True
+                        
+                        # Store in session state for manual review
+                        st.session_state.generated_questions = questions
+                        
+                        # Clear the loading container and show success
+                        progress_container.empty()
+                        
+                    else:
+                        progress_container.empty()
+                        st.error(f"❌ Could not find generated questions file in Azure blob storage: {intermediate_path_str}")
+                except Exception as e:
                     progress_container.empty()
-                    
-                    st.success(f"🎉 Generated {len(questions)} questions successfully!")
-                    st.info("👆 Please review the questions in the Manual Review section below.")
-                    
-                else:
-                    progress_container.empty()
-                    st.error("❌ Could not find generated questions file.")
+                    st.error(f"❌ Error loading questions from Azure blob storage: {str(e)}")
+                    import traceback
+                    with st.expander("🔍 Error Details", expanded=False):
+                        st.code(traceback.format_exc())
                     
             except Exception as e:
                 progress_container.empty()
@@ -281,17 +328,41 @@ def process_answer_evaluation(answer_key_file, student_answer_file):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # Step 1: Save uploaded files
-        status_text.text("📁 Saving uploaded files...")
+        # Step 1: Upload files to Azure blob storage
+        status_text.text("📤 Uploading files to Azure blob storage...")
         progress_bar.progress(10)
         
-        # Create temporary files
+        # Upload files to Azure blob storage
+        from utils.file.handlers import handle_file_upload
+        from storage import get_storage_client
+        
+        answer_key_blob_path = handle_file_upload(answer_key_file, "answer_key")
+        student_answer_blob_path = handle_file_upload(student_answer_file, "student_answer")
+        
+        if not answer_key_blob_path or not student_answer_blob_path:
+            st.error("❌ Failed to upload files to Azure blob storage")
+            return
+        
+        # Load files from Azure blob storage for processing
+        status_text.text("📥 Loading files from Azure blob storage...")
+        progress_bar.progress(20)
+        
+        storage = get_storage_client()
+        if not storage.is_blob_storage():
+            st.error("❌ Blob storage is not configured. Please configure Azure storage.")
+            return
+        
+        # Download from blob storage to temp files (libraries need local files)
+        answer_key_data = storage.read_file(answer_key_blob_path)
+        student_answer_data = storage.read_file(student_answer_blob_path)
+        
+        # Create temporary files for processing
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(answer_key_file.name).suffix) as tmp_answer_key:
-            tmp_answer_key.write(answer_key_file.getbuffer())
+            tmp_answer_key.write(answer_key_data)
             temp_answer_key_path = tmp_answer_key.name
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(student_answer_file.name).suffix) as tmp_student:
-            tmp_student.write(student_answer_file.getbuffer())
+            tmp_student.write(student_answer_data)
             temp_student_path = tmp_student.name
         
         # Step 2: Process files based on type
@@ -351,8 +422,6 @@ def process_answer_evaluation(answer_key_file, student_answer_file):
                 status_text.text("✅ Evaluation completed!")
                 progress_bar.progress(100)
                 
-                st.success("🎉 Evaluation completed successfully!")
-                st.info("👆 Check the results in the Evaluation Results section below.")
                 
             else:
                 st.error("❌ Evaluation failed. Please check your files and try again.")
@@ -403,14 +472,13 @@ def reset_session_state():
     """Reset session state for new session"""
     keys_to_reset = [
         'processing', 'evaluating', 'generated_questions', 
-        'evaluation_results', 'temp_files'
+        'evaluation_results'
     ]
     
     for key in keys_to_reset:
         if key in st.session_state:
             del st.session_state[key]
     
-    st.success("🔄 Session reset successfully!")
 
 def get_system_info() -> Dict[str, Any]:
     """
@@ -422,7 +490,6 @@ def get_system_info() -> Dict[str, Any]:
     info = {
         'python_version': sys.version,
         'working_directory': os.getcwd(),
-        'temp_directory_exists': os.path.exists('temp_files'),
         'answer_key_gen_exists': os.path.exists('answer_key_gen'),
         'session_state_keys': list(st.session_state.keys())
     }

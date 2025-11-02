@@ -5,6 +5,13 @@ import subprocess
 import shutil
 from pathlib import Path
 
+# Import storage client for persistent file operations
+try:
+    from storage import get_storage_client, should_use_temp_local
+    _storage_available = True
+except ImportError:
+    _storage_available = False
+
 
 PROJECT_ROOT = Path(__file__).parent
 OUTPUT_DIR = PROJECT_ROOT / "output"
@@ -18,11 +25,21 @@ def run_parse(input_path: Path, output_dir: Path = None) -> Path:
         output_dir = OUTPUT_DIR
     
     final_json = output_dir / "final_answer.json"
+    final_json_str = str(final_json)
+    
+    # Delete existing file if it exists (check both local and blob)
     if final_json.exists():
         try:
             final_json.unlink()
         except Exception:
             pass
+    elif _storage_available and not should_use_temp_local(final_json_str):
+        storage = get_storage_client()
+        if storage.is_blob_storage() and storage.exists(final_json_str):
+            try:
+                storage.delete_file(final_json_str)
+            except Exception:
+                pass
 
     cmd = [sys.executable, "-m", "extractor.parse", str(input_path)]
     env = os.environ.copy()
@@ -33,20 +50,77 @@ def run_parse(input_path: Path, output_dir: Path = None) -> Path:
     if result.returncode != 0:
         raise RuntimeError("Parsing failed. See logs above.")
 
-    if not final_json.exists():
+    # Check if file exists (both local and blob)
+    file_exists = False
+    if final_json.exists():
+        file_exists = True
+    elif _storage_available and not should_use_temp_local(final_json_str):
+        storage = get_storage_client()
+        if storage.is_blob_storage() and storage.exists(final_json_str):
+            file_exists = True
+    
+    if not file_exists:
         raise FileNotFoundError(f"Expected parsed output not found: {final_json}")
     return final_json
 
 
 def load_json(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Load JSON file (supports both local and blob storage)"""
+    path_str = str(path)
+    
+    # Temp files should always be local
+    if should_use_temp_local(path_str) or not _storage_available:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    else:
+        # Try blob storage for persistent files
+        storage = get_storage_client()
+        if storage.is_blob_storage():
+            # Check if it's a blob path or local path
+            if path.exists():
+                # Local file exists, use it
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            else:
+                # Try blob storage
+                return storage.read_json(path_str)
+        else:
+            # Local storage, use file system
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
 
 
 def save_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Save JSON file (supports both local and blob storage)"""
+    path_str = str(path)
+    
+    # Temp files should always be local
+    if should_use_temp_local(path_str) or not _storage_available:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    else:
+        # Use blob storage for persistent files
+        storage = get_storage_client()
+        storage.write_json(path_str, data)
+
+
+def file_exists(path: Path) -> bool:
+    """Check if file exists (supports both local and blob storage)"""
+    path_str = str(path)
+    
+    # Temp files should always be local
+    if should_use_temp_local(path_str) or not _storage_available:
+        return path.exists()
+    else:
+        # Check both local and blob
+        if path.exists():
+            return True
+        if _storage_available:
+            storage = get_storage_client()
+            if storage.is_blob_storage():
+                return storage.exists(path_str)
+        return False
 
 
 def transform_parsed_to_schema(parsed: dict, for_answer_key: bool) -> dict:
@@ -154,8 +228,9 @@ def handle_upload_answer_key():
 
 
 def handle_evaluate():
-    if not (ANSWER_KEY_DIR / "answer_key.json").exists():
-        print(f"Answer key not found at {ANSWER_KEY_DIR / 'answer_key.json'}. Please upload the answer key first.")
+    answer_key_path = ANSWER_KEY_DIR / "answer_key.json"
+    if not file_exists(answer_key_path):
+        print(f"Answer key not found at {answer_key_path}. Please upload the answer key first.")
         return
 
     path_str = input("Enter path to student answer document (PDF/DOCX/PNG/JPG): ").strip().strip('"')
@@ -269,6 +344,7 @@ def handle_upload_answer():
     print("\n=== Upload Student Answer ===")
     path_str = input("Enter path to student answer document (PDF/DOCX/PNG/JPG): ").strip().strip('"')
     input_path = Path(path_str)
+    # Input files for processing are typically local
     if not input_path.exists():
         print("Error: File not found.")
         return
@@ -298,14 +374,16 @@ def handle_answer_evaluation():
     print("\n=== Answer Evaluation ===")
     
     # Check if answer key exists
-    if not (ANSWER_KEY_DIR / "answer_key.json").exists():
-        print(f"Answer key not found at {ANSWER_KEY_DIR / 'answer_key.json'}")
+    answer_key_path = ANSWER_KEY_DIR / "answer_key.json"
+    if not file_exists(answer_key_path):
+        print(f"Answer key not found at {answer_key_path}")
         print("Please upload the answer key first (option 2).")
         return
     
     # Check if student answer exists
-    if not (STUDENT_ANSWER_DIR / "student_answer.json").exists():
-        print(f"Student answer not found at {STUDENT_ANSWER_DIR / 'student_answer.json'}")
+    student_answer_path = STUDENT_ANSWER_DIR / "student_answer.json"
+    if not file_exists(student_answer_path):
+        print(f"Student answer not found at {student_answer_path}")
         print("Please upload the student answer first (option 3).")
         return
     

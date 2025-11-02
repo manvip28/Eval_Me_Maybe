@@ -30,18 +30,68 @@ def save_to_docx(questions, docx_file="final_questions.docx", image_associator=N
         p.add_run("Question: ").bold = True
         p.add_run(q.get("question", ""))
 
-        # Add diagram if available
+        # Add diagram if available (can be string or list)
         if "diagram" in q and q["diagram"]:
             try:
                 # Add image to document
                 doc.add_paragraph("Diagram:")
-                # Use the relative path from the JSON
-                image_path = q["diagram"]
-                doc.add_picture(image_path, width=Inches(4.0))
-                doc.add_paragraph("")  # Add space after image
+                
+                # Handle both string and list cases
+                diagram_refs = q["diagram"]
+                if isinstance(diagram_refs, str):
+                    diagram_refs = [diagram_refs]
+                elif not isinstance(diagram_refs, list):
+                    diagram_refs = []
+                
+                # Load image from Azure blob storage
+                import tempfile
+                from storage import get_storage_client
+                
+                storage = get_storage_client()
+                images_added = 0
+                
+                for diagram_ref in diagram_refs:
+                    if not diagram_ref:
+                        continue
+                    
+                    # Convert relative path to blob path (remove ./ if present)
+                    blob_path = diagram_ref.lstrip('./') if isinstance(diagram_ref, str) and diagram_ref.startswith('./') else diagram_ref
+                    
+                    if storage.is_blob_storage() and storage.exists(blob_path):
+                        try:
+                            # Download image from blob storage to temp file
+                            image_data = storage.read_file(blob_path)
+                            
+                            # Create temporary file for the image
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_img:
+                                tmp_img_path = tmp_img.name
+                                tmp_img.write(image_data)
+                            
+                            try:
+                                # Add image to document
+                                doc.add_picture(tmp_img_path, width=Inches(4.0))
+                                images_added += 1
+                            finally:
+                                # Clean up temp file
+                                try:
+                                    os.unlink(tmp_img_path)
+                                except:
+                                    pass
+                        except Exception as img_error:
+                            print(f"Warning: Could not add image {blob_path}: {img_error}")
+                    else:
+                        print(f"Warning: Diagram not found in Azure blob storage: {blob_path}")
+                
+                if images_added == 0:
+                    # If no images were added, show the reference
+                    doc.add_paragraph(f"[Image: {q['diagram']}]")
+                else:
+                    doc.add_paragraph("")  # Add space after image(s)
             except Exception as e:
-                print(f"Warning: Could not add image {q['diagram']}: {e}")
-                doc.add_paragraph(f"[Image: {q['diagram']}]")
+                print(f"Warning: Could not add image {q.get('diagram', 'unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
+                doc.add_paragraph(f"[Image: {q.get('diagram', 'unknown')}]")
 
         p = doc.add_paragraph()
         p.add_run("Bloom: ").bold = True
@@ -234,65 +284,132 @@ def run_pipeline(input_path: str, output_file: str = "generated_questions.json",
         for question in questions:
             question["diagram"] = None
     
-    # 4. Save intermediate results to answer_key_gen folder
-    answer_key_gen_dir = Path("answer_key_gen")
-    answer_key_gen_dir.mkdir(exist_ok=True)
+    # 4. Save intermediate results to Azure blob storage ONLY
+    intermediate_json_path_str = "answer_key_gen/intermediate_questions.json"
     
-    intermediate_json_path = answer_key_gen_dir / "intermediate_questions.json"
-    with open(intermediate_json_path, "w") as f:
-        json.dump(questions, f, indent=2)
-    print(f"Saved intermediate questions to {intermediate_json_path}")
+    # Save to blob storage ONLY
+    try:
+        from storage import get_storage_client
+        storage = get_storage_client()
+        if not storage.is_blob_storage():
+            raise RuntimeError("Blob storage is not configured. Please configure Azure storage.")
+        
+        storage.write_json(intermediate_json_path_str, questions)
+        print(f"✅ Saved intermediate questions to Azure blob storage: {intermediate_json_path_str}")
+    except Exception as e:
+        print(f"❌ Failed to save intermediate questions to blob storage: {e}")
+        raise
     
     # 5. Manual Review (skip if called from Streamlit)
     print(f"DEBUG: About to check skip_manual_review = {skip_manual_review}")
+    
+    # Load questions from Azure blob storage for manual review
+    try:
+        from storage import get_storage_client
+        storage = get_storage_client()
+        if not storage.is_blob_storage():
+            raise RuntimeError("Blob storage is not configured.")
+        
+        all_questions = storage.read_json(intermediate_json_path_str)
+    except Exception as e:
+        print(f"❌ Failed to load intermediate questions from blob storage: {e}")
+        raise
+    
     if not skip_manual_review:
         print("\nStarting manual review process...")
         print("🔍 CLI Manual Review Mode - Interactive review in terminal")
-        review_questions(intermediate_json_path)
+        # For CLI review, we need a local temp file
+        temp_review_path = Path("temp_review_questions.json")
+        with open(temp_review_path, "w") as f:
+            json.dump(all_questions, f, indent=2)
+        review_questions(temp_review_path)
+        
+        # Reload from temp file after review
+        with open(temp_review_path, "r") as f:
+            all_questions = json.load(f)
+        temp_review_path.unlink()  # Clean up temp file
         
         # 6. Filter and save only approved questions
         print("\nFiltering approved questions...")
-        with open(intermediate_json_path, "r") as f:
-            all_questions = json.load(f)
-        
         approved_questions = [q for q in all_questions if q.get("approved", False)]
+        
+        # Save updated questions back to Azure
+        storage.write_json(intermediate_json_path_str, all_questions)
     else:
         print("\n🌐 WEB INTERFACE MODE - Skipping CLI manual review")
         print("📝 Questions will be reviewed in the web interface")
-        # Load all questions without filtering
-        with open(intermediate_json_path, "r") as f:
-            all_questions = json.load(f)
-        
         approved_questions = all_questions  # Don't filter, let web interface handle approval
     
-    # Save approved questions to answer_key_gen folder
-    answer_key_gen_dir = Path("answer_key_gen")
-    answer_key_gen_dir.mkdir(exist_ok=True)
+    # Save approved questions to Azure blob storage ONLY
+    final_json_path_str = "answer_key_gen/final_questions.json"
+    final_docx_path_str = "answer_key_gen/final_answer_key.docx"
+    question_paper_path_str = "answer_key_gen/question_paper.docx"
     
-    final_json_path = answer_key_gen_dir / "final_questions.json"
-    final_docx_path = answer_key_gen_dir / "final_answer_key.docx"
-    question_paper_path = answer_key_gen_dir / "question_paper.docx"
-    
-    with open(final_json_path, "w") as f:
-        json.dump(approved_questions, f, indent=2)
+    # Save final JSON to blob storage ONLY
+    try:
+        from storage import get_storage_client
+        storage = get_storage_client()
+        if not storage.is_blob_storage():
+            raise RuntimeError("Blob storage is not configured.")
+        
+        storage.write_json(final_json_path_str, approved_questions)
+        print(f"✅ Saved final questions to Azure blob storage: {final_json_path_str}")
+    except Exception as e:
+        print(f"❌ Failed to save final questions to blob storage: {e}")
+        raise
 
     # Only generate final documents if not skipping manual review
     if not skip_manual_review:
-        save_to_docx(approved_questions, final_docx_path, None)  # No need for image_associator anymore
-        save_question_paper_to_docx(approved_questions, question_paper_path)
+        # Generate to temp files first, then upload to Azure
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_docx1:
+            temp_docx1_path = tmp_docx1.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_docx2:
+            temp_docx2_path = tmp_docx2.name
         
-        print(f"Pipeline completed!")
+        try:
+            save_to_docx(approved_questions, temp_docx1_path, None)
+            save_question_paper_to_docx(approved_questions, temp_docx2_path)
+            
+            # Upload final DOCX files to blob storage ONLY
+            try:
+                from storage import get_storage_client
+                storage = get_storage_client()
+                if not storage.is_blob_storage():
+                    raise RuntimeError("Blob storage is not configured.")
+                
+                # Upload answer key
+                with open(temp_docx1_path, "rb") as f:
+                    storage.write_file(final_docx_path_str, f.read())
+                print(f"✅ Saved final answer key to Azure blob storage: {final_docx_path_str}")
+                
+                # Upload question paper
+                with open(temp_docx2_path, "rb") as f:
+                    storage.write_file(question_paper_path_str, f.read())
+                print(f"✅ Saved question paper to Azure blob storage: {question_paper_path_str}")
+            except Exception as e:
+                print(f"❌ Failed to upload final documents to blob storage: {e}")
+                raise
+        finally:
+            # Clean up temp files
+            try:
+                os.unlink(temp_docx1_path)
+                os.unlink(temp_docx2_path)
+            except:
+                pass
+        
+        print(f"\n✅ Pipeline completed!")
         print(f"Total questions generated: {len(all_questions)}")
         print(f"Approved questions: {len(approved_questions)}")
-        print(f"Intermediate questions saved to: {intermediate_json_path}")
-        print(f"Final questions saved to: {final_json_path}")
-        print(f"Final answer key document saved to: {final_docx_path}")
-        print(f"Question paper saved to: {question_paper_path}")
-        print(f"Diagrams saved to: answer_key_gen/diagrams/")
+        print(f"Intermediate questions saved to Azure: {intermediate_json_path_str}")
+        print(f"Final questions saved to Azure: {final_json_path_str}")
+        print(f"Final answer key document saved to Azure: {final_docx_path_str}")
+        print(f"Question paper saved to Azure: {question_paper_path_str}")
+        print(f"Diagrams saved to Azure: answer_key_gen/diagrams/")
     else:
         print(f"\n🎉 Pipeline completed (WEB INTERFACE MODE)!")
         print(f"📊 Total questions generated: {len(all_questions)}")
-        print(f"💾 Intermediate questions saved to: {intermediate_json_path}")
+        print(f"💾 Intermediate questions saved to Azure: {intermediate_json_path_str}")
         print(f"🌐 Manual review will be done in the web interface")
         print(f"📄 Final documents will be generated after web-based review")
         print(f"✅ Ready for Streamlit web interface!")

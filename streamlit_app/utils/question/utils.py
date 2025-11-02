@@ -84,36 +84,47 @@ def process_question_generation(uploaded_file, questions_per_topic: int):
             status_text.text("📝 Loading questions for review...")
             progress_bar.progress(80)
             
-            # Load intermediate questions for manual review
-            answer_key_gen_dir = parent_dir / "answer_key_gen"
-            answer_key_gen_dir.mkdir(exist_ok=True)
+            # Load intermediate questions from Azure blob storage ONLY
+            intermediate_path_str = "answer_key_gen/intermediate_questions.json"
+            questions = None
             
-            intermediate_path = answer_key_gen_dir / "intermediate_questions.json"
-            if intermediate_path.exists():
-                with open(intermediate_path, 'r', encoding='utf-8') as f:
-                    questions = json.load(f)
+            try:
+                from storage import get_storage_client
+                storage = get_storage_client()
                 
-                # Ensure all questions default to pending (approved: False)
-                for question in questions:
-                    question['approved'] = False
+                if not storage.is_blob_storage():
+                    st.error("❌ Blob storage is not configured. Please configure Azure storage.")
+                    return
                 
-                # Store in session state for manual review
-                st.session_state.generated_questions = questions
-                # Reset documents generated flag since new questions are available
-                st.session_state.documents_generated = False
-                
-                # Step 4: Complete
-                status_text.text("✅ Questions ready for review!")
-                progress_bar.progress(100)
-                
-                st.success("🎉 Questions generated successfully!")
-                st.info("🔄 Redirecting to Manual Review page...")
-                
-                # Navigate to manual review page
-                st.session_state.current_page = 'manual_review'
-                st.rerun()
-            else:
-                st.error("❌ Could not find generated questions file.")
+                if storage.exists(intermediate_path_str):
+                    questions = storage.read_json(intermediate_path_str)
+                    
+                    # Ensure all questions default to pending (approved: False)
+                    for question in questions:
+                        question['approved'] = False
+                    
+                    # Store in session state for manual review
+                    st.session_state.generated_questions = questions
+                    # Reset documents generated flag since new questions are available
+                    st.session_state.documents_generated = False
+                    
+                    # Step 4: Complete
+                    status_text.text("✅ Questions ready for review!")
+                    progress_bar.progress(100)
+                    
+                    st.success("🎉 Questions generated successfully!")
+                    st.info("🔄 Redirecting to Manual Review page...")
+                    
+                    # Navigate to manual review page
+                    st.session_state.current_page = 'manual_review'
+                    st.rerun()
+                else:
+                    st.error(f"❌ Could not find generated questions file in Azure blob storage: {intermediate_path_str}")
+            except Exception as e:
+                st.error(f"❌ Error loading questions from Azure blob storage: {str(e)}")
+                import traceback
+                with st.expander("🔍 Error Details", expanded=False):
+                    st.code(traceback.format_exc())
                 
         except Exception as e:
             st.error(f"❌ Error during question generation: {str(e)}")

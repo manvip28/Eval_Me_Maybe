@@ -124,7 +124,18 @@ def show_question_generation_page():
     )
     
     if uploaded_file is not None:
-        st.success("✅ File uploaded successfully and ready for processing.")
+        # Upload file to Azure blob storage first
+        from utils.file.handlers import handle_file_upload
+        
+        # Check if this is a new upload (file changed or not yet uploaded)
+        current_file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+        if 'last_uploaded_file_id' not in st.session_state or st.session_state.last_uploaded_file_id != current_file_id:
+            # Upload to Azure blob storage
+            blob_path = handle_file_upload(uploaded_file, "textbook")
+            
+            if blob_path and blob_path.startswith("uploads/"):
+                st.session_state.textbook_blob_path = blob_path
+                st.session_state.last_uploaded_file_id = current_file_id
         
         # Configuration section
         st.markdown("#### ⚙️ Configuration")

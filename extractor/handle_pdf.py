@@ -46,5 +46,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     input_file = sys.argv[1]
-    poppler_path = r"C:\poppler-25.07.0\Library\bin"  # change as needed
+    import platform
+    poppler_path = os.getenv("POPPLER_PATH") or (r"C:\poppler-25.07.0\Library\bin" if platform.system() == "Windows" else None)
     convert_pdf_to_images(input_file, poppler_path=poppler_path)

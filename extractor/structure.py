@@ -2,6 +2,13 @@ import json
 import re
 import os
 
+# Import storage client for persistent file operations
+try:
+    from storage import get_storage_client, should_use_temp_local
+    _storage_available = True
+except ImportError:
+    _storage_available = False
+
 def convert_to_final_format(input_json_files, output_file):
     """
     Combine one or more structured_output.json files and produce a final JSON
@@ -11,8 +18,20 @@ def convert_to_final_format(input_json_files, output_file):
 
     # Merge all pages
     for file in input_json_files:
-        with open(file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        # Read JSON file (supports both local and blob)
+        if _storage_available and not should_use_temp_local(file):
+            storage = get_storage_client()
+            if storage.is_blob_storage() and not os.path.exists(file):
+                # Try blob storage if file doesn't exist locally
+                data = storage.read_json(file)
+            else:
+                # Local file exists
+                with open(file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+        else:
+            # Local file system
+            with open(file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
         
         text = data.get('text', '')
         diagrams = data.get('diagrams', [])
@@ -48,10 +67,15 @@ def convert_to_final_format(input_json_files, output_file):
     for q_num, content in questions.items():
         content["text"] = re.sub(r"\s+", " ", content["text"]).strip()
 
-    # Save final JSON
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(questions, f, indent=2, ensure_ascii=False)
+    # Save final JSON (supports both local and blob)
+    if _storage_available and not should_use_temp_local(output_file):
+        storage = get_storage_client()
+        storage.write_json(output_file, questions)
+    else:
+        # Local file system fallback
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(questions, f, indent=2, ensure_ascii=False)
 
     print(f"[SUCCESS] Final JSON saved: {output_file}")
     return questions

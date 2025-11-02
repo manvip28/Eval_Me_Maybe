@@ -5,6 +5,8 @@ import tempfile
 import os
 from pathlib import Path
 import sys
+import zipfile
+import io
 
 # Add parent directory to path
 parent_dir = Path(__file__).parent.parent.parent.parent
@@ -46,26 +48,102 @@ def display_all_students_evaluation_results():
             display_single_student_results(results, idx)
     
     # Download report section
-    st.markdown("### 📄 Download Combined Report")
+    st.markdown("### 📄 Generate & Download Reports")
     
-    # Generate report on button click
-    if st.button("📄 Generate & Download Combined Evaluation Report", type="primary"):
-        generate_multi_student_evaluation_report()
+    col1, col2 = st.columns(2)
     
-    # Show download button if report is already generated
-    if 'multi_student_report_content' in st.session_state and st.session_state.multi_student_report_content:
-        st.success("✅ Combined evaluation report is ready for download!")
+    with col1:
+        # Generate combined report on button click
+        if st.button("📄 Generate & Download Combined Report", type="primary", use_container_width=True):
+            generate_multi_student_evaluation_report()
         
+        # Show download button if combined report is already generated
+        # Try to load from Azure first, fallback to session state
+        report_bytes = None
         filename = st.session_state.get('multi_student_report_filename', 'evaluation_report_all_students.docx')
-        report_bytes = st.session_state.multi_student_report_content
-        mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         
-        st.download_button(
-            "📥 Download Combined Evaluation Report",
-            data=report_bytes,
-            file_name=filename,
-            mime=mime_type
-        )
+        # Try to load from Azure blob storage first
+        blob_path = st.session_state.get('multi_student_report_blob_path')
+        if blob_path:
+            try:
+                from storage import get_storage_client
+                storage = get_storage_client()
+                
+                if storage.is_blob_storage() and storage.exists(blob_path):
+                    report_bytes = storage.read_file(blob_path)
+            except Exception:
+                pass
+        
+        # Fallback to session state if not in Azure
+        if not report_bytes and 'multi_student_report_content' in st.session_state:
+            report_bytes = st.session_state.multi_student_report_content
+        
+        if report_bytes:
+            mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            
+            st.download_button(
+                "📥 Download Combined Report",
+                data=report_bytes,
+                file_name=filename,
+                mime=mime_type,
+                use_container_width=True
+            )
+    
+    with col2:
+        # Generate individual student reports on button click
+        if st.button("📄 Generate & Download Individual Reports", type="primary", use_container_width=True):
+            generate_individual_student_reports()
+        
+        # Show download buttons if individual reports are already generated
+        if 'individual_reports' in st.session_state and st.session_state.individual_reports:
+            reports = st.session_state.individual_reports
+            num_reports = len(reports)
+            
+            if num_reports > 10:
+                # More than 10 files - use ZIP
+                if 'individual_reports_zip' in st.session_state and st.session_state.individual_reports_zip:
+                    zip_bytes = st.session_state.individual_reports_zip
+                    zip_filename = st.session_state.get('individual_reports_zip_filename', 'student_reports.zip')
+                    
+                    st.download_button(
+                        "📥 Download All Student Reports (ZIP)",
+                        data=zip_bytes,
+                        file_name=zip_filename,
+                        mime="application/zip",
+                        use_container_width=True
+                    )
+            else:
+                # 10 or fewer files - download all at once with one button (not ZIP)
+                # Display all download buttons at once
+                st.markdown("**Download individual reports:**")
+                
+                # Create columns for better layout if there are multiple files
+                if num_reports > 1:
+                    cols = st.columns(min(num_reports, 3))  # Max 3 columns
+                    for idx, (filename, file_content) in enumerate(reports.items()):
+                        safe_name = filename.replace('.docx', '')
+                        col = cols[idx % len(cols)]
+                        with col:
+                            st.download_button(
+                                f"📥 {safe_name}",
+                                data=file_content,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True,
+                                key=f"download_{safe_name}_{idx}"
+                            )
+                else:
+                    # Single file
+                    for filename, file_content in reports.items():
+                        safe_name = filename.replace('.docx', '')
+                        st.download_button(
+                            f"📥 Download {safe_name}",
+                            data=file_content,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True,
+                            key=f"download_{safe_name}"
+                        )
 
 def display_single_student_results(results, student_idx):
     """Display results for a single student"""
@@ -260,6 +338,96 @@ def generate_evaluation_report():
             import traceback
             st.error(traceback.format_exc())
 
+def generate_individual_student_reports():
+    """Generate individual DOCX reports for each student"""
+    with st.spinner("Generating individual student reports..."):
+        try:
+            # Import the DOCX report generator
+            from evaluator.report_generator import generate_docx_report
+            
+            # Get all results from session state
+            all_results = st.session_state.all_evaluation_results
+            num_students = len(all_results)
+            
+            # Create a temporary directory for reports
+            temp_dir = tempfile.mkdtemp()
+            report_files = {}
+            
+            try:
+                # Generate a DOCX report for each student
+                for student_idx, results in enumerate(all_results, start=1):
+                    student_name = results.get('student_name', f'Student_{student_idx}')
+                    student_filename = results.get('student_filename', 'Unknown')
+                    
+                    # Clean filename - remove special characters and use student name
+                    safe_name = "".join(c for c in student_name if c.isalnum() or c in (' ', '-', '_')).strip()
+                    if not safe_name:
+                        safe_name = f"Student_{student_idx}"
+                    
+                    # Create temporary JSON file for this student
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8', dir=temp_dir) as tmp_json:
+                        json.dump(results, tmp_json, indent=2, ensure_ascii=False)
+                        tmp_json_path = tmp_json.name
+                    
+                    # Generate DOCX report for this student
+                    report_filename = f"{safe_name}.docx"
+                    report_path = os.path.join(temp_dir, report_filename)
+                    
+                    generate_docx_report(tmp_json_path, report_path)
+                    
+                    # Read the generated DOCX file into memory
+                    with open(report_path, 'rb') as f:
+                        report_content = f.read()
+                    
+                    report_files[report_filename] = report_content
+                    
+                    # Clean up temporary JSON file
+                    try:
+                        os.unlink(tmp_json_path)
+                    except:
+                        pass
+                
+                # Store individual reports in session state
+                st.session_state.individual_reports = report_files
+                
+                # If more than 10 files, also create ZIP file
+                if num_students > 10:
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                        for filename, filepath in [(f, os.path.join(temp_dir, f)) for f in report_files.keys()]:
+                            if os.path.exists(filepath):
+                                zip_file.write(filepath, filename)
+                    
+                    zip_buffer.seek(0)
+                    zip_content = zip_buffer.read()
+                    
+                    # Store ZIP in session state
+                    st.session_state.individual_reports_zip = zip_content
+                    st.session_state.individual_reports_zip_filename = "student_reports.zip"
+                
+                # Rerun to show download buttons
+                st.rerun()
+                
+            finally:
+                # Clean up temporary files
+                try:
+                    for filename in report_files.keys():
+                        filepath = os.path.join(temp_dir, filename)
+                        if os.path.exists(filepath):
+                            os.unlink(filepath)
+                    if os.path.exists(temp_dir):
+                        os.rmdir(temp_dir)
+                except:
+                    pass
+            
+        except ImportError as e:
+            st.error(f"❌ Error importing report generator: {str(e)}")
+            st.error("Please ensure evaluator/report_generator.py exists and python-docx is installed.")
+        except Exception as e:
+            st.error(f"❌ Error generating individual reports: {str(e)}")
+            import traceback
+            st.error(traceback.format_exc())
+
 def generate_multi_student_evaluation_report():
     """Generate and download combined evaluation report for all students"""
     with st.spinner("Generating combined evaluation report for all students..."):
@@ -282,12 +450,24 @@ def generate_multi_student_evaluation_report():
                 with open(tmp_report_path, 'rb') as f:
                     report_content = f.read()
                 
-                # Store in session state for persistence
+                # Store in session state for immediate download
                 st.session_state.multi_student_report_content = report_content
                 st.session_state.multi_student_report_filename = "evaluation_report_all_students.docx"
                 
-                # Success message
-                st.success("✅ Combined evaluation report generated successfully!")
+                # Save to Azure blob storage for backup
+                try:
+                    from storage import get_storage_client
+                    storage = get_storage_client()
+                    
+                    if storage.is_blob_storage():
+                        blob_path = "evaluation_reports/combined_report_all_students.docx"
+                        storage.write_file(blob_path, report_content)
+                        st.session_state.multi_student_report_blob_path = blob_path
+                except Exception as e:
+                    # If Azure save fails, continue with session state only
+                    pass
+                
+                # Rerun to show download button
                 st.rerun()
                 
             finally:
