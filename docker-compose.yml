@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-question-generator
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    # Note: No volume mounts needed when using Azure Storage
+    # - All files are stored in Azure Blob Storage (cloud)
+    # - Streamlit session state is in-memory (ephemeral)
+    # - Temporary files use system temp directory (automatically cleaned)
+    # 
+    # Optional: If you want to mount local directories for testing/backup:
+    # volumes:
+    #   - ./input:/app/input:ro  # Read-only mount for testing
+    #   - ./logs:/app/logs:rw    # Optional: for persistent logs
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+      # Poppler path is not needed in Linux container (it's in PATH)
+      # But can be set if needed
+      # - POPPLER_PATH=/usr/bin
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8501/_stcore/health')"]
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

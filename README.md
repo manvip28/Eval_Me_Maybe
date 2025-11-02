@@ -28,13 +28,95 @@ An intelligent system that generates educational questions from textbooks and ev
 
 ## Setup
 
-### 1. Install Dependencies
+You can install the application using **Docker** (recommended) or **manual installation**. Docker automatically includes all dependencies including Poppler.
+
+---
+
+## 🐳 Installation with Docker (Recommended)
+
+Docker installation automatically includes all dependencies and system tools (Poppler, etc.) - no manual setup needed!
+
+### Prerequisites
+- Docker (version 20.10 or higher)
+- Docker Compose (version 2.0 or higher)
+
+### Quick Start
+
+1. **Build and run with Docker Compose:**
+   ```bash
+   # Build and start the container
+   docker-compose up -d
+   
+   # View logs
+   docker-compose logs -f
+   
+   # Stop the container
+   docker-compose down
+   ```
+
+2. **Access the application:**
+   Open your browser and go to: `http://localhost:8501`
+
+### What's Included in Docker
+
+✅ **All Python dependencies** (PyTorch, CLIP, spaCy, etc.)  
+✅ **System dependencies** (Poppler for PDF processing, Tesseract OCR)  
+✅ **Pre-configured models:**
+   - spaCy English model (`en_core_web_sm`)
+   - NLTK data (punkt tokenizer, stopwords)
+   - CLIP model (downloads on first use)
+   - Sentence Transformer models (download on first use)
+
+✅ **No manual setup needed** - Everything is pre-configured!
+
+### Environment Variables
+
+Create a `.env` file in the project root (see Environment Variables section below).
+
+### Docker Commands
+
+```bash
+# Build the image
+docker-compose build
+
+# Start the application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the application
+docker-compose down
+
+# Rebuild from scratch (if needed)
+docker-compose build --no-cache
+```
+
+### Docker Notes
+
+- **Azure Storage**: All files are stored in Azure Blob Storage (cloud) - no local volume mounts needed
+- **Session State**: Streamlit session state is in-memory (ephemeral) - no volume mounts needed
+- **Stateless Container**: Container is completely stateless - all data in Azure cloud
+
+---
+
+## 📦 Manual Installation
+
+If you prefer to install manually (without Docker):
+
+### 1. Install Python Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Environment Variables
+### 2. Install CLIP from GitHub
+
+```bash
+pip install git+https://github.com/openai/CLIP.git
+```
+
+### 3. Environment Variables
 
 Create a `.env` file in the project root with your API keys:
 
@@ -57,7 +139,7 @@ DEFAULT_TEMPERATURE=0.7
 # POPPLER_PATH=C:\poppler\Library\bin
 ```
 
-### 3. Get API Keys
+### 4. Get API Keys
 
 #### OpenRouter API Key
 1. Go to [OpenRouter](https://openrouter.ai/)
@@ -82,7 +164,9 @@ DEFAULT_TEMPERATURE=0.7
 
 **Note:** If you don't configure Azure Blob Storage, the system will use local storage. However, for full functionality and cloud backup, Azure Blob Storage is recommended.
 
-### 4. Install PDF Processing Tools
+### 5. Install PDF Processing Tools (Manual Installation Only)
+
+> **Note:** If you're using Docker, skip this section - Poppler and Tesseract are already included!
 
 The project uses PDF processing tools that require separate installation.
 
@@ -143,7 +227,9 @@ pdftoppm -h
 - You can test the path by running: `C:\poppler\Library\bin\pdftoppm.exe -h` (replace with your actual path)
 - If errors persist, try adding the full path to `extractor/parse.py` line 14
 
-### 5. Download Python Models and Data
+### 6. Download Python Models and Data (Manual Installation Only)
+
+> **Note:** If you're using Docker, skip this section - Models are already downloaded during build!
 
 **Important:** While `spacy` and `nltk` are installed via `requirements.txt`, their models and data need to be downloaded separately.
 
