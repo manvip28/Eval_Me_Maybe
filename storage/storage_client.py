@@ -1,6 +1,6 @@
 """
 Storage abstraction layer supporting both local filesystem and Azure Blob Storage.
-Auto-detects storage type based on environment variables.
+Defaults to Azure Blob Storage unless explicitly configured otherwise.
 """
 import os
 import json
@@ -20,8 +20,8 @@ else:
     # Fallback: try to find .env in current directory or parent directories
     load_dotenv(override=True)
 
-# Storage configuration
-STORAGE_TYPE = os.getenv("STORAGE_TYPE", "local").lower()  # 'local' or 'blob'
+# Storage configuration - defaults to Azure Blob Storage
+STORAGE_TYPE = os.getenv("STORAGE_TYPE", "blob").lower()  # 'local' or 'blob', defaults to 'blob'
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 AZURE_CONTAINER_NAME = os.getenv("AZURE_CONTAINER_NAME")
 
@@ -277,7 +277,7 @@ class StorageClient:
         Initialize storage client.
         
         Args:
-            storage_type: 'local' or 'blob'. If None, uses STORAGE_TYPE env var or defaults to 'local'
+            storage_type: 'local' or 'blob'. If None, uses STORAGE_TYPE env var or defaults to 'blob' (Azure)
         """
         # Reload env vars to ensure we have the latest values
         # Find project root (where .env file should be)
@@ -307,13 +307,13 @@ class StorageClient:
                 load_dotenv(override=True)
         
         if storage_type is None:
-            # Re-read from env after reload
-            storage_type_raw = os.getenv("STORAGE_TYPE", "local")
+            # Re-read from env after reload - default to blob (Azure)
+            storage_type_raw = os.getenv("STORAGE_TYPE", "blob")
             if storage_type_raw:
                 # Strip whitespace and quotes
                 storage_type = storage_type_raw.strip().strip('"').strip("'").lower()
             else:
-                storage_type = "local"
+                storage_type = "blob"
         
         # Debug: Log what was detected
         # Note: This won't be visible to user but helps with debugging
@@ -329,14 +329,14 @@ class StorageClient:
             
             if not connection_string:
                 raise ValueError(
-                    f"STORAGE_TYPE is set to 'blob' but AZURE_STORAGE_CONNECTION_STRING is not set. "
-                    f"Either set the connection string or use STORAGE_TYPE=local. "
+                    f"Azure Blob Storage requires AZURE_STORAGE_CONNECTION_STRING to be set. "
+                    f"Either set the connection string in .env file or use STORAGE_TYPE=local. "
                     f"Checked .env at: {self._env_path} (exists: {self._env_path.exists()})"
                 )
             if not container_name:
                 raise ValueError(
-                    f"STORAGE_TYPE is set to 'blob' but AZURE_CONTAINER_NAME is not set. "
-                    f"Either set the container name or use STORAGE_TYPE=local. "
+                    f"Azure Blob Storage requires AZURE_CONTAINER_NAME to be set. "
+                    f"Either set the container name in .env file or use STORAGE_TYPE=local. "
                     f"Checked .env at: {self._env_path} (exists: {self._env_path.exists()})"
                 )
             try:

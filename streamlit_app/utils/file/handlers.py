@@ -100,14 +100,9 @@ def handle_file_upload(uploaded_file, file_type: str) -> Optional[str]:
                         raise
                 else:
                     # Local storage - save locally
-                    # Show why it's using local storage if blob was expected
-                    if storage_type_env == 'blob':
-                        st.error(f"❌ **PROBLEM DETECTED:** STORAGE_TYPE is 'blob' but storage client returned local storage.")
-                        st.error(f"   This means the StorageClient initialization failed or fell back to local.")
-                        st.error(f"   Check your Azure credentials and connection string.")
-                        st.error(f"   **Storage Type from client:** `{storage.storage_type}`")
-                    else:
-                        st.info(f"ℹ️ Using local storage (STORAGE_TYPE is '{storage_type_env}')")
+                    # Note: Since Azure (blob) is the default, if we're using local storage,
+                    # it means either STORAGE_TYPE was explicitly set to 'local' or blob initialization failed
+                    st.info(f"ℹ️ Using local storage (Storage type: {storage.storage_type})")
                     
                     # Save to local storage
                     local_dir = Path("local_uploads") / file_type
