@@ -7,8 +7,15 @@ import nltk
 import re
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from .clip_image_compare import compare_images
-from .bloom_utils import classify_bloom
+try:
+    from .clip_image_compare import compare_images
+except ImportError:
+    compare_images = None
+    
+try:
+    from .bloom_utils import classify_bloom
+except ImportError:
+    classify_bloom = None
 
 # -------------------- NLTK Downloads --------------------
 try:
@@ -89,7 +96,7 @@ def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=
         rouge_score = 0.0
 
     kw_coverage = keyword_coverage_score(stu_answer, keywords) if keywords else 0.5
-    classified = classify_bloom(gt_question or "", stu_answer)
+    classified = classify_bloom(gt_question or "", stu_answer) if classify_bloom is not None else bloom_gt
 
     # Bloom's taxonomy penalty
     if bloom_gt:
@@ -136,17 +143,12 @@ def evaluate_answer(gt_question, gt_answer, stu_answer, bloom_gt=None, keywords=
 def load_json_file(filename):
     """Load JSON file with error handling"""
     try:
-        print(f"Loading file: {filename}")
         with open(filename, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            print(f"Successfully loaded {filename} with {len(data)} items")
             return data
     except FileNotFoundError:
-        print(f"Error: File '{filename}' not found.")
-        print("Make sure the file exists in the current directory.")
         return None
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON format in '{filename}': {e}")
+    except json.JSONDecodeError:
         return None
 
 def evaluate_from_json_files(student_file, answer_key_file):
@@ -177,11 +179,10 @@ def evaluate_from_json_files(student_file, answer_key_file):
             reference_img = answer_key_info.get("Image")
 
             image_score = None
-            if student_img and reference_img:
+            if student_img and reference_img and compare_images is not None:
                 try:
                     image_score = compare_images(student_img, reference_img)
-                except Exception as e:
-                    print(f"Image comparison failed for {question_id}: {e}")
+                except Exception:
                     image_score = None
 
             # Extract student answer

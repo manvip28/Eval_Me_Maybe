@@ -4,12 +4,27 @@ An intelligent system that generates educational questions from textbooks and ev
 
 ## Features
 
-- **Question Generation**: Generate questions from PDF textbooks using Mistral AI
+### Core Features
+- **Question Generation**: Generate questions from PDF/DOCX textbooks using Mistral AI
 - **Answer Generation**: Automatically generate answers for created questions
-- **Answer Evaluation**: Evaluate student answers against answer keys
-- **Image Processing**: Extract and analyze images from documents using Azure AI Vision
-- **Bloom's Taxonomy**: Categorize questions by cognitive levels
+- **Answer Evaluation**: Evaluate student answers against answer keys with comprehensive scoring
+- **Image Processing**: Extract and analyze images/diagrams from documents using Azure AI Vision
+- **Bloom's Taxonomy**: Categorize questions by cognitive levels (Remember, Understand, Apply, Analyze, Evaluate, Create)
+- **Manual Review**: Review and approve generated questions before final document generation
 - **Interactive Interfaces**: Both CLI and Streamlit web interfaces
+
+### Storage & Cloud Features
+- **Azure Blob Storage Integration**: All files (textbooks, generated questions, diagrams, documents) stored in Azure cloud
+- **Automatic Cloud Backup**: Combined evaluation reports automatically backed up to Azure
+- **No Local Storage**: All generated content exclusively uses Azure Blob Storage (no local files)
+
+### Report Generation
+- **Combined Report**: Generate a single DOCX report with all student evaluations
+- **Individual Reports**: Generate separate DOCX reports for each student (with filename as student name)
+- **Smart Download**: 
+  - ≤10 students: Individual download buttons for each report
+  - >10 students: ZIP file download
+- **Automatic Backup**: Combined reports saved to Azure for safety
 
 ## Setup
 
@@ -22,7 +37,6 @@ pip install -r requirements.txt
 ### 2. Environment Variables
 
 Create a `.env` file in the project root with your API keys:
-Edit `.env` file with your actual API keys:
 
 ```env
 # API Keys - Add your actual keys here
@@ -30,13 +44,17 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 AZURE_AI_VISION_KEY=your_azure_ai_vision_key_here
 AZURE_AI_VISION_ENDPOINT=your_azure_ai_vision_endpoint_here
 
+# Azure Blob Storage Configuration
+STORAGE_TYPE=blob
+AZURE_STORAGE_CONNECTION_STRING=your_azure_storage_connection_string_here
+AZURE_CONTAINER_NAME=your_container_name_here
+
 # Optional: Other configuration
 DEFAULT_MODEL=mistralai/mistral-7b-instruct
 DEFAULT_TEMPERATURE=0.7
 
 # Optional: Poppler path (Windows only - uncomment and update if Poppler is not in PATH)
 # POPPLER_PATH=C:\poppler\Library\bin
-
 ```
 
 ### 3. Get API Keys
@@ -51,6 +69,18 @@ DEFAULT_TEMPERATURE=0.7
 2. Create a Computer Vision resource
 3. Get your endpoint and key
 4. Add them to your `.env` file
+
+#### Azure Blob Storage (Required for Cloud Storage)
+1. Go to [Azure Portal](https://portal.azure.com/)
+2. Create a Storage Account
+3. Create a Blob Container (or use existing one)
+4. Get your Storage Account connection string from "Access keys"
+5. Add to your `.env` file:
+   - `STORAGE_TYPE=blob`
+   - `AZURE_STORAGE_CONNECTION_STRING=your_connection_string`
+   - `AZURE_CONTAINER_NAME=your_container_name`
+
+**Note:** If you don't configure Azure Blob Storage, the system will use local storage. However, for full functionality and cloud backup, Azure Blob Storage is recommended.
 
 ### 4. Install PDF Processing Tools
 
@@ -154,10 +184,10 @@ python main.py
 ```
 
 This will show a menu with options:
-1. Generate Questions from Textbook
-2. Upload Answer Key
-3. Upload Student Answer
-4. Evaluate Student Answer
+1. **Generate Questions from Textbook**: Upload a textbook and generate questions
+2. **Upload Answer Key**: Upload and process answer key files
+3. **Upload Student Answer**: Upload and process student answer files
+4. **Evaluate Student Answer**: Evaluate student answers against answer keys
 
 ### Streamlit Interface
 
@@ -170,8 +200,31 @@ streamlit run app.py
 This will launch a web interface where you can:
 - Generate questions from textbooks
 - Review and approve questions
+- Generate final question papers and answer keys
 - Evaluate student answers
 - Download reports and documents
+
+### Streamlit UI Buttons
+
+#### Question Generation Page
+- **📤 Upload PDF/DOCX**: Upload your textbook file (automatically saved to Azure)
+- **🚀 Generate Questions**: Start the question generation process
+- **✅ Approve/❌ Reject**: Review and approve questions before document generation
+- **📄 Generate Question Paper**: Generate final question paper DOCX document
+- **📄 Generate Answer Key**: Generate final answer key DOCX document
+- **📥 Download Question Paper**: Download the generated question paper
+- **📥 Download Answer Key**: Download the generated answer key
+- **🔄 Regenerate Documents**: Regenerate documents if needed
+
+#### Answer Evaluation Page
+- **📋 Upload Answer Key**: Upload answer key file (JSON or DOCX)
+- **📝 Upload Student Answer(s)**: Upload one or more student answer files
+- **📊 Evaluate Answers**: Start evaluation process
+- **📄 Generate & Download Combined Report**: Generate single DOCX with all students
+- **📄 Generate & Download Individual Reports**: Generate separate DOCX files for each student
+- **📥 Download All Student Reports**: 
+  - If ≤10 students: Individual download buttons for each report
+  - If >10 students: Download as ZIP file
 
 ## Project Structure
 
@@ -179,16 +232,50 @@ This will launch a web interface where you can:
 ├── generation/                 # Question generation pipeline
 │   ├── pipeline.py            # Main generation pipeline
 │   ├── question_generation/   # Question generation modules
-│   └── utils/                 # Utility functions
+│   └── utils/                 # Utility functions (image extraction, association)
 ├── extractor/                 # Document extraction
 ├── evaluator/                 # Answer evaluation
+│   ├── answer_evaluator.py    # Main evaluation logic
+│   ├── report_generator.py    # DOCX report generation
+│   └── clip_image_compare.py # Image comparison using CLIP
+├── storage/                    # Storage abstraction layer
+│   ├── storage_client.py      # Azure Blob Storage and Local storage client
+│   └── __init__.py           # Storage exports
 ├── streamlit_app/             # Streamlit web application
-├── input/                     # Input documents
-├── output/                    # Generated outputs
-├── main.py                    # CLI application
-├── app.py                     # Streamlit application
-├── requirements.txt           # Dependencies
-└── .env                       # Environment variables (create this)
+│   ├── utils/
+│   │   ├── pages/            # Page components
+│   │   ├── pipeline/         # Pipeline integration
+│   │   ├── evaluation/       # Evaluation UI components
+│   │   ├── document/         # Document generation
+│   │   └── file/             # File upload handlers
+│   └── app.py                # Streamlit app entry point
+├── input/                     # Input documents (legacy)
+├── output/                    # Generated outputs (legacy)
+├── local_uploads/            # Local file storage (fallback only)
+├── main.py                   # CLI application
+├── app.py                    # Streamlit application
+├── requirements.txt          # Dependencies
+└── .env                      # Environment variables (create this)
+```
+
+### Azure Blob Storage Structure
+
+All files are stored in Azure Blob Storage with the following structure:
+```
+Azure Container/
+├── uploads/
+│   ├── textbook/            # Uploaded textbook files
+│   ├── answer_key/          # Uploaded answer key files
+│   └── student_answer/      # Uploaded student answer files
+├── answer_key_gen/
+│   ├── intermediate_questions.json    # Generated questions (before approval)
+│   ├── final_questions.json           # Approved questions
+│   ├── question_paper.docx            # Final question paper
+│   ├── final_answer_key.docx          # Final answer key
+│   └── diagrams/                      # Extracted diagrams/images
+│       └── diagram_*.png
+└── evaluation_reports/
+    └── combined_report_all_students.docx    # Combined evaluation report (backed up)
 ```
 
 ## API Integration
@@ -218,9 +305,24 @@ This will launch a web interface where you can:
 
 ### Answer Evaluation
 - CLIP-based image comparison
-- Text similarity analysis
+- Text similarity analysis (semantic, BLEU, ROUGE-L)
 - Bloom's taxonomy alignment
-- Comprehensive scoring
+- Keyword coverage analysis
+- Comprehensive scoring with weighted metrics
+
+### Report Generation
+- **Combined Report**: Single DOCX containing all student evaluations
+- **Individual Reports**: Separate DOCX file for each student (named by student name)
+- **Smart Download System**: 
+  - 10 or fewer students: Individual download buttons
+  - More than 10 students: ZIP file download
+- **Azure Backup**: Combined reports automatically saved to Azure for safety
+
+### Storage System
+- **Azure Blob Storage**: Primary storage for all files
+- **Automatic Upload**: All uploaded files saved to Azure immediately
+- **Cloud-Only Processing**: All generated content (questions, diagrams, documents) stored exclusively in Azure
+- **Local Fallback**: Only used if Azure is not configured
 
 ## Troubleshooting
 
@@ -270,6 +372,18 @@ This will launch a web interface where you can:
    - Sentence Transformer and CLIP models are large (500MB-1GB)
    - Models download automatically on first use - be patient
    - If downloads fail, check firewall/antivirus settings
+
+8. **Azure Blob Storage Issues**
+   - Ensure `STORAGE_TYPE=blob` is set in `.env` file
+   - Verify `AZURE_STORAGE_CONNECTION_STRING` is correct
+   - Verify `AZURE_CONTAINER_NAME` exists in your storage account
+   - Check that the storage account and container allow the required permissions
+   - If uploads fail, check Azure portal for container access and permissions
+
+9. **File Not Found Errors**
+   - If you see "Textbook not found in Azure blob storage", ensure the file was uploaded successfully
+   - Check that Azure Blob Storage is properly configured
+   - Verify the file appears in Azure portal under the specified container
 
 ## Contributing
 

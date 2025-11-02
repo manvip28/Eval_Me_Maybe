@@ -7,40 +7,125 @@ import json
 from typing import Optional, Dict, Any
 import uuid
 
+# Import storage client for persistent file operations
+try:
+    import sys
+    # Add project root to path to find storage (not streamlit_app/utils)
+    project_root = Path(__file__).parent.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from storage import get_storage_client, should_use_temp_local
+    from dotenv import load_dotenv
+    # Load .env file from project root explicitly
+    env_path = project_root / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+    else:
+        load_dotenv(override=True)
+    _storage_available = True
+except ImportError:
+    _storage_available = False
+
 def handle_file_upload(uploaded_file, file_type: str) -> Optional[str]:
     """
-    Handle file upload and save to temporary directory
+    Handle file upload and save to blob storage or local storage
     
     Args:
         uploaded_file: Streamlit uploaded file object
         file_type: Type of file ('textbook', 'answer_key', 'student_answer')
     
     Returns:
-        Path to saved file or None if error
+        Blob path or local path to saved file or None if error
     """
     if uploaded_file is None:
         return None
     
     try:
-        # Create temporary directory for this session
-        temp_dir = Path("temp_files") / str(uuid.uuid4())
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        
         # Determine file extension
         file_extension = get_file_extension(uploaded_file.name)
         
         # Create unique filename
         filename = f"{file_type}_{uuid.uuid4().hex[:8]}{file_extension}"
-        file_path = temp_dir / filename
         
-        # Save uploaded file
+        # Get file data
+        file_data = uploaded_file.getbuffer()
+        
+        # Try to save to blob storage if available and configured
+        if _storage_available:
+            try:
+                # Force reload to ensure latest env vars are picked up
+                import os
+                from dotenv import load_dotenv
+                # Load from project root explicitly
+                env_path = project_root / ".env"
+                if env_path.exists():
+                    load_dotenv(env_path, override=True)
+                else:
+                    load_dotenv(override=True)
+                
+                # Get storage client
+                try:
+                    storage = get_storage_client(force_reload=True)
+                    is_blob = storage.is_blob_storage()
+                except Exception as init_error:
+                    # Show error during upload
+                    st.error(f"❌ **Failed to initialize storage client during upload:** {str(init_error)}")
+                    import traceback
+                    with st.expander("🔍 Error Details", expanded=False):
+                        st.code(traceback.format_exc())
+                    raise  # Re-raise to trigger the exception handler below
+                
+                if is_blob:
+                    # Save directly to blob storage
+                    blob_path = f"uploads/{file_type}/{filename}"
+                    try:
+                        # Write to blob storage
+                        storage.write_file(blob_path, bytes(file_data))
+                        
+                        # Verify the file was saved
+                        if not storage.exists(blob_path):
+                            raise Exception(f"Blob storage write failed - file does not exist after upload")
+                        
+                        # Show simple success message
+                        st.success("File uploaded successfully!")
+                        
+                        return blob_path  # Return blob path as primary path
+                    except Exception as blob_error:
+                        # Blob write failed, show detailed error
+                        st.error(f"❌ **Failed to save to blob storage:** {str(blob_error)}")
+                        import traceback
+                        with st.expander("🔍 Blob Storage Error Details", expanded=True):
+                            st.code(traceback.format_exc())
+                        # Re-raise to trigger fallback to local storage
+                        raise
+                else:
+                    # Local storage - save locally
+                    # Note: Since Azure (blob) is the default, if we're using local storage,
+                    # it means either STORAGE_TYPE was explicitly set to 'local' or blob initialization failed
+                    st.info(f"ℹ️ Using local storage (Storage type: {storage.storage_type})")
+                    
+                    # Save to local storage
+                    local_dir = Path("local_uploads") / file_type
+                    local_dir.mkdir(parents=True, exist_ok=True)
+                    local_path = local_dir / filename
+                    with open(local_path, "wb") as f:
+                        f.write(file_data)
+                    
+                    return str(local_path)
+            except Exception as e:
+                error_msg = str(e)
+                import traceback
+                st.error(f"❌ Failed to save to blob storage: {error_msg}")
+                st.error(f"Error details: {traceback.format_exc()}")
+                # Fall through to local storage
+        
+        # Local storage fallback
+        local_dir = Path("local_uploads") / file_type
+        local_dir.mkdir(parents=True, exist_ok=True)
+        file_path = local_dir / filename
+        
         with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        
-        # Store in session state for cleanup
-        if 'temp_files' not in st.session_state:
-            st.session_state.temp_files = []
-        st.session_state.temp_files.append(str(file_path))
+            f.write(file_data)
         
         return str(file_path)
         
@@ -92,21 +177,6 @@ def check_file_size_limit(uploaded_file, max_size_mb: float = 50.0) -> bool:
     file_size_mb = get_file_size_mb(uploaded_file)
     return file_size_mb <= max_size_mb
 
-def cleanup_temp_files():
-    """Clean up temporary files"""
-    if 'temp_files' in st.session_state:
-        for file_path in st.session_state.temp_files:
-            try:
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    # Also remove parent directory if empty
-                    parent_dir = Path(file_path).parent
-                    if parent_dir.exists() and not any(parent_dir.iterdir()):
-                        parent_dir.rmdir()
-            except Exception as e:
-                st.warning(f"Could not clean up file {file_path}: {str(e)}")
-        
-        st.session_state.temp_files = []
 
 def save_json_data(data: Dict[Any, Any], filename: str) -> str:
     """
@@ -119,44 +189,66 @@ def save_json_data(data: Dict[Any, Any], filename: str) -> str:
     Returns:
         Path to saved file
     """
-    temp_dir = Path("temp_files") / str(uuid.uuid4())
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as tmp_file:
+        json.dump(data, tmp_file, indent=2, ensure_ascii=False)
+        file_path = tmp_file.name
     
-    file_path = temp_dir / filename
-    
-    with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    
-    # Store in session state for cleanup
-    if 'temp_files' not in st.session_state:
-        st.session_state.temp_files = []
-    st.session_state.temp_files.append(str(file_path))
-    
-    return str(file_path)
+    return file_path
 
 def load_json_data(file_path: str) -> Optional[Dict[Any, Any]]:
     """
-    Load data from JSON file
+    Load data from JSON file (supports both local and blob storage)
     
     Args:
-        file_path: Path to JSON file
+        file_path: Path to JSON file (local path or blob path)
     
     Returns:
         Loaded data or None if error
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        # Temp files should always be local
+        if should_use_temp_local(file_path) or not _storage_available:
+            # Use local file system
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # Try blob storage for persistent files
+            storage = get_storage_client()
+            if storage.is_blob_storage():
+                # Check if it's a blob path or local path
+                if Path(file_path).exists():
+                    # Local file exists, use it
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+                else:
+                    # Try blob storage
+                    return storage.read_json(file_path)
+            else:
+                # Local storage, use file system
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+    except FileNotFoundError:
+        # If file not found locally, try blob storage if available
+        if _storage_available and not should_use_temp_local(file_path):
+            try:
+                storage = get_storage_client()
+                if storage.is_blob_storage() and storage.exists(file_path):
+                    return storage.read_json(file_path)
+            except Exception:
+                pass
+        st.error(f"File not found: {file_path}")
+        return None
     except Exception as e:
         st.error(f"Error loading JSON file: {str(e)}")
         return None
 
 def create_download_link(file_path: str, filename: str, mime_type: str) -> str:
     """
-    Create download link for file
+    Create download link for file (supports both local and blob storage)
     
     Args:
-        file_path: Path to file
+        file_path: Path to file (local path or blob path)
         filename: Name for downloaded file
         mime_type: MIME type for file
     
@@ -164,8 +256,27 @@ def create_download_link(file_path: str, filename: str, mime_type: str) -> str:
         Download link
     """
     try:
-        with open(file_path, 'rb') as f:
-            file_data = f.read()
+        # Temp files should always be local
+        if should_use_temp_local(file_path) or not _storage_available:
+            # Use local file system
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+        else:
+            # Try blob storage for persistent files
+            storage = get_storage_client()
+            if storage.is_blob_storage():
+                # Check if it's a blob path or local path
+                if Path(file_path).exists():
+                    # Local file exists, use it
+                    with open(file_path, 'rb') as f:
+                        file_data = f.read()
+                else:
+                    # Try blob storage
+                    file_data = storage.read_file(file_path)
+            else:
+                # Local storage, use file system
+                with open(file_path, 'rb') as f:
+                    file_data = f.read()
         
         return st.download_button(
             label=f"📄 Download {filename}",
@@ -210,38 +321,5 @@ def get_file_info(file_path: str) -> Dict[str, Any]:
             'error': str(e)
         }
 
-def ensure_temp_directory():
-    """Ensure temporary directory exists"""
-    # Use the streamlit_app directory for temp files
-    temp_dir = Path(__file__).parent.parent.parent / "temp_files"
-    temp_dir.mkdir(exist_ok=True)
-    return temp_dir
 
-def get_temp_directory() -> Path:
-    """Get temporary directory path"""
-    return ensure_temp_directory()
-
-def cleanup_old_files(max_age_hours: int = 24):
-    """
-    Clean up old temporary files
-    
-    Args:
-        max_age_hours: Maximum age of files in hours
-    """
-    temp_dir = get_temp_directory()
-    current_time = os.path.getctime(temp_dir)
-    
-    for file_path in temp_dir.rglob("*"):
-        if file_path.is_file():
-            try:
-                file_age_hours = (current_time - file_path.stat().st_mtime) / 3600
-                if file_age_hours > max_age_hours:
-                    file_path.unlink()
-                    # Remove empty directories
-                    parent = file_path.parent
-                    while parent != temp_dir and not any(parent.iterdir()):
-                        parent.rmdir()
-                        parent = parent.parent
-            except Exception:
-                pass  # Ignore errors during cleanup
 

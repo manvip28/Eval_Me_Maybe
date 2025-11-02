@@ -87,27 +87,47 @@ def review_questions_interface():
             
             with col1:
                 question_paper_path = st.session_state.get('question_paper_path')
-                if question_paper_path and os.path.exists(question_paper_path):
-                    with open(question_paper_path, 'rb') as f:
-                        st.download_button(
-                            "Download Question Paper",
-                            data=f.read(),
-                            file_name="question_paper.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
+                if question_paper_path:
+                    try:
+                        # Try to load from Azure blob storage
+                        from storage import get_storage_client
+                        storage = get_storage_client()
+                        
+                        if storage.is_blob_storage() and storage.exists(question_paper_path):
+                            file_data = storage.read_file(question_paper_path)
+                            st.download_button(
+                                "Download Question Paper",
+                                data=file_data,
+                                file_name="question_paper.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+                        else:
+                            st.error("Question paper not found in Azure blob storage")
+                    except Exception as e:
+                        st.error(f"Error loading question paper: {str(e)}")
                 else:
                     st.error("Question paper not found")
             
             with col2:
                 answer_key_path = st.session_state.get('answer_key_path')
-                if answer_key_path and os.path.exists(answer_key_path):
-                    with open(answer_key_path, 'rb') as f:
-                        st.download_button(
-                            "Download Answer Key",
-                            data=f.read(),
-                            file_name="answer_key.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
+                if answer_key_path:
+                    try:
+                        # Try to load from Azure blob storage
+                        from storage import get_storage_client
+                        storage = get_storage_client()
+                        
+                        if storage.is_blob_storage() and storage.exists(answer_key_path):
+                            file_data = storage.read_file(answer_key_path)
+                            st.download_button(
+                                "Download Answer Key",
+                                data=file_data,
+                                file_name="answer_key.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+                        else:
+                            st.error("Answer key not found in Azure blob storage")
+                    except Exception as e:
+                        st.error(f"Error loading answer key: {str(e)}")
                 else:
                     st.error("Answer key not found")
             

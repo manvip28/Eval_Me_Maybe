@@ -102,7 +102,7 @@ def extract_topics_with_images(docx_path: str, output_dir: str = "answer_key_gen
     
     # Create output directory for images
     diagrams_dir = Path(output_dir) / "diagrams"
-    diagrams_dir.mkdir(parents=True, exist_ok=True)
+    # diagrams_dir.mkdir(parents=True, exist_ok=True)  # Commented out - using Azure blob storage only
     
     doc = Document(docx_path)
     
@@ -190,10 +190,20 @@ def extract_topics_with_images(docx_path: str, output_dir: str = "answer_key_gen
                 
                 # Save image with topic-based naming
                 img_filename = f"diagram_{image_count}.png"
-                img_path = diagrams_dir / img_filename
+                img_blob_path = f"answer_key_gen/diagrams/{img_filename}"
                 
-                with open(img_path, 'wb') as f:
-                    f.write(image_data)
+                # Upload to Azure blob storage ONLY
+                try:
+                    from storage import get_storage_client
+                    storage = get_storage_client()
+                    if not storage.is_blob_storage():
+                        print(f"⚠️ Blob storage not configured, skipping diagram: {img_blob_path}")
+                        continue
+                    
+                    storage.write_file(img_blob_path, image_data)
+                    print(f"✅ Saved diagram to Azure blob storage: {img_blob_path}")
+                except Exception as e:
+                    print(f"❌ Failed to upload diagram to blob storage: {e}")
                 
                 # Associate with proper topics in round-robin fashion
                 if proper_topics:
@@ -203,7 +213,7 @@ def extract_topics_with_images(docx_path: str, output_dir: str = "answer_key_gen
                 
                 # Store image metadata
                 image_info = {
-                    "path": str(img_path),
+                    "blob_path": img_blob_path,
                     "filename": img_filename,
                     "relative_path": f"./answer_key_gen/diagrams/{img_filename}",
                     "size": actual_size,

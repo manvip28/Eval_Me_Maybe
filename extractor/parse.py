@@ -10,8 +10,23 @@ from .handle_docx import extract_from_docx_table  # import your DOCX handler
 # Load environment variables
 load_dotenv()
 
+# Import storage client for persistent file operations
+try:
+    from storage import get_storage_client, should_use_temp_local
+    _storage_available = True
+except ImportError:
+    _storage_available = False
+
 # ====== CONFIG ======
-POPPLER_PATH = r"C:\poppler-25.07.0\Library\bin"  # Only for PDFs
+# Poppler path - check environment variable first, then use Windows default or None for Linux
+import platform
+POPPLER_PATH_ENV = os.getenv("POPPLER_PATH")
+if POPPLER_PATH_ENV:
+    POPPLER_PATH = POPPLER_PATH_ENV
+elif platform.system() == "Windows":
+    POPPLER_PATH = r"C:\poppler-25.07.0\Library\bin"  # Windows default
+else:
+    POPPLER_PATH = None  # Linux/Mac - Poppler should be in PATH
 OUTPUT_FOLDER = "./output"
 
 # Check if custom output folder is provided via environment variable
@@ -56,8 +71,16 @@ if INPUT_FILE.lower().endswith(".pdf"):
     for idx, img_path in enumerate(image_files, start=1):
         data = extract_json(img_path, AZURE_ENDPOINT, AZURE_KEY, output_folder=OUTPUT_FOLDER)
         page_json_file = os.path.join(OUTPUT_FOLDER, f"structured_output_page_{idx}.json")
-        with open(page_json_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        # Save to storage (blob or local)
+        if _storage_available and not should_use_temp_local(page_json_file):
+            storage = get_storage_client()
+            storage.write_json(page_json_file, data)
+        else:
+            # Local file system fallback
+            os.makedirs(os.path.dirname(page_json_file), exist_ok=True)
+            with open(page_json_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
         structured_json_files.append(page_json_file)
 
 elif INPUT_FILE.lower().endswith(".docx"):
@@ -65,8 +88,16 @@ elif INPUT_FILE.lower().endswith(".docx"):
     data = extract_from_docx_table(INPUT_FILE, output_file=os.path.join(OUTPUT_FOLDER, "structured_output_docx.json"))
     # For DOCX, the extractor already returns the final per-question structure
     final_output_file = os.path.join(OUTPUT_FOLDER, "final_answer.json")
-    with open(final_output_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    # Save to storage (blob or local)
+    if _storage_available and not should_use_temp_local(final_output_file):
+        storage = get_storage_client()
+        storage.write_json(final_output_file, data)
+    else:
+        # Local file system fallback
+        os.makedirs(os.path.dirname(final_output_file), exist_ok=True)
+        with open(final_output_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"Final structured JSON saved to {final_output_file}")
     sys.exit(0)
 
@@ -74,8 +105,16 @@ elif INPUT_FILE.lower().endswith((".png", ".jpg", ".jpeg")):
     # Directly extract JSON from image
     data = extract_json(INPUT_FILE, AZURE_ENDPOINT, AZURE_KEY, output_folder=OUTPUT_FOLDER)
     image_json_file = os.path.join(OUTPUT_FOLDER, "structured_output_image.json")
-    with open(image_json_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    
+    # Save to storage (blob or local)
+    if _storage_available and not should_use_temp_local(image_json_file):
+        storage = get_storage_client()
+        storage.write_json(image_json_file, data)
+    else:
+        # Local file system fallback
+        os.makedirs(os.path.dirname(image_json_file), exist_ok=True)
+        with open(image_json_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
     structured_json_files.append(image_json_file)
 
 else:

@@ -74,13 +74,6 @@ def process_answer_evaluation(answer_key_file, student_answer_file):
                 # Step 4: Complete
                 status_text.text("✅ Evaluation completed!")
                 progress_bar.progress(100)
-                
-                st.success("🎉 Evaluation completed successfully!")
-                st.info("Check the evaluation results in your project directory.")
-                
-                # Show output
-                with st.expander("📋 Evaluation Output"):
-                    st.text(result.stdout)
             else:
                 st.error("❌ Error during evaluation:")
                 st.error(result.stderr)
@@ -109,12 +102,33 @@ def process_multiple_student_evaluations(answer_key_file, student_answer_files):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # Save answer key once
-        status_text.text("📁 Saving answer key...")
+        # Step 1: Upload answer key to Azure blob storage
+        status_text.text("📤 Uploading answer key...")
         progress_bar.progress(5)
         
+        from utils.file.handlers import handle_file_upload
+        from storage import get_storage_client
+        
+        answer_key_blob_path = handle_file_upload(answer_key_file, "answer_key")
+        
+        if not answer_key_blob_path:
+            st.error("❌ Failed to upload answer key to Azure blob storage")
+            return
+        
+        # Load answer key from Azure blob storage
+        status_text.text("📥 Loading answer key from Azure blob storage...")
+        progress_bar.progress(8)
+        
+        storage = get_storage_client()
+        if not storage.is_blob_storage():
+            st.error("❌ Blob storage is not configured. Please configure Azure storage.")
+            return
+        
+        # Download from blob storage to temp file (libraries need local files)
+        answer_key_data = storage.read_file(answer_key_blob_path)
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(answer_key_file.name).suffix) as tmp_answer_key:
-            tmp_answer_key.write(answer_key_file.getbuffer())
+            tmp_answer_key.write(answer_key_data)
             temp_answer_key_path = tmp_answer_key.name
         
         # Determine answer key extension
@@ -140,9 +154,18 @@ def process_multiple_student_evaluations(answer_key_file, student_answer_files):
             progress_bar.progress(progress)
             
             try:
-                # Save student file
+                # Upload student file to Azure blob storage
+                student_answer_blob_path = handle_file_upload(student_answer_file, "student_answer")
+                
+                if not student_answer_blob_path:
+                    continue
+                
+                # Load student file from Azure blob storage
+                student_answer_data = storage.read_file(student_answer_blob_path)
+                
+                # Save to temp file for processing
                 with tempfile.NamedTemporaryFile(delete=False, suffix=Path(student_answer_file.name).suffix) as tmp_student:
-                    tmp_student.write(student_answer_file.getbuffer())
+                    tmp_student.write(student_answer_data)
                     temp_student_path = tmp_student.name
                 
                 # Convert student file to JSON
@@ -150,7 +173,6 @@ def process_multiple_student_evaluations(answer_key_file, student_answer_files):
                 converted_student_path = convert_file_to_json(temp_student_path, student_extension, "student")
                 
                 if not converted_student_path:
-                    st.warning(f"⚠️ Failed to convert {student_name} to JSON format. Skipping...")
                     continue
                 
                 # Run evaluation
@@ -172,7 +194,6 @@ def process_multiple_student_evaluations(answer_key_file, student_answer_files):
                     pass
                     
             except Exception as e:
-                st.warning(f"⚠️ Error evaluating {student_name}: {str(e)}")
                 continue
         
         # Final cleanup
@@ -189,8 +210,6 @@ def process_multiple_student_evaluations(answer_key_file, student_answer_files):
             progress_bar.progress(100)
             
             st.session_state.all_evaluation_results = all_results
-            st.success(f"🎉 Successfully evaluated {len(all_results)} student(s)!")
-            st.info("👆 Check the results in the Evaluation Results section below.")
         else:
             st.error("❌ No evaluations completed successfully.")
         
@@ -219,8 +238,6 @@ def generate_evaluation_report():
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=parent_dir)
             
             if result.returncode == 0:
-                st.success("🎉 Evaluation report generated successfully!")
-                
                 # Provide download link
                 report_path = parent_dir / "evaluation_report.md"
                 if report_path.exists():
