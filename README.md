@@ -57,6 +57,73 @@ Docker installation automatically includes all dependencies and system tools (Po
 2. **Access the application:**
    Open your browser and go to: `http://localhost:8501`
 
+### Using Pre-built Docker Image (From Docker Hub)
+
+If you prefer to use a pre-built Docker image instead of building locally, the app is available on Docker Hub.
+
+#### Steps to Run with Pre-built Image
+
+1. **Pull the image:**
+   ```bash
+   docker pull manvip28/majorproject-app:latest
+   ```
+
+2. **Run the container with environment variables:**
+
+   **Option 1: Using .env file (Recommended)**
+   ```bash
+   docker run -d \
+     -p 8501:8501 \
+     --env-file .env \
+     --name ai-question-generator \
+     manvip28/majorproject-app:latest
+   ```
+
+   **Option 2: Set environment variables directly**
+   ```bash
+   docker run -d \
+     -p 8501:8501 \
+     -e OPENROUTER_API_KEY=your_key \
+     -e AZURE_AI_VISION_ENDPOINT=your_endpoint \
+     -e AZURE_AI_VISION_KEY=your_key \
+     -e AZURE_STORAGE_CONNECTION_STRING=your_connection_string \
+     -e AZURE_CONTAINER_NAME=your_container \
+     -e STORAGE_TYPE=blob \
+     --name ai-question-generator \
+     manvip28/majorproject-app:latest
+   ```
+
+3. **Access the application:**
+   Open your browser and go to: `http://localhost:8501`
+
+4. **View logs:**
+   ```bash
+   docker logs -f ai-question-generator
+   ```
+
+5. **Stop the container:**
+   ```bash
+   docker stop ai-question-generator
+   docker rm ai-question-generator
+   ```
+
+#### Important Notes
+
+⚠️ **Requirements:**
+- Docker must be installed on your system
+- No need to install Python, dependencies, or Poppler manually — everything is included in the Docker image
+- You must provide your own `.env` file or environment variables with API keys and Azure credentials
+
+⚠️ **Environment Variables Required:**
+- `OPENROUTER_API_KEY` - Your OpenRouter API key
+- `AZURE_AI_VISION_ENDPOINT` - Your Azure AI Vision endpoint
+- `AZURE_AI_VISION_KEY` - Your Azure AI Vision key
+- `AZURE_STORAGE_CONNECTION_STRING` - Your Azure Storage connection string
+- `AZURE_CONTAINER_NAME` - Your Azure container name
+- `STORAGE_TYPE=blob` - Set to "blob" for Azure storage
+
+> **Note:** The pre-built image includes all dependencies (Python packages, Poppler, Tesseract, spaCy model, NLTK data, CLIP) — no manual setup needed!
+
 ### What's Included in Docker
 
 ✅ **All Python dependencies** (PyTorch, CLIP, spaCy, etc.)  
@@ -69,11 +136,7 @@ Docker installation automatically includes all dependencies and system tools (Po
 
 ✅ **No manual setup needed** - Everything is pre-configured!
 
-### Environment Variables
-
-Create a `.env` file in the project root (see Environment Variables section below).
-
-### Docker Commands
+### Docker Commands (Local Build)
 
 ```bash
 # Build the image
@@ -116,7 +179,7 @@ pip install -r requirements.txt
 pip install git+https://github.com/openai/CLIP.git
 ```
 
-### 3. Environment Variables
+### 3. Environment Variables & API Keys
 
 Create a `.env` file in the project root with your API keys:
 
@@ -139,7 +202,7 @@ DEFAULT_TEMPERATURE=0.7
 # POPPLER_PATH=C:\poppler\Library\bin
 ```
 
-### 4. Get API Keys
+#### How to Get API Keys
 
 #### OpenRouter API Key
 1. Go to [OpenRouter](https://openrouter.ai/)
@@ -283,14 +346,7 @@ Run the Streamlit web application:
 streamlit run app.py
 ```
 
-This will launch a web interface where you can:
-- Generate questions from textbooks
-- Review and approve questions
-- Generate final question papers and answer keys
-- Evaluate student answers
-- Download reports and documents
-
-### Streamlit UI Buttons
+This will launch a web interface with the following features:
 
 #### Question Generation Page
 - **📤 Upload PDF/DOCX**: Upload your textbook file (automatically saved to Azure)
@@ -396,21 +452,6 @@ Azure Container/
 - Keyword coverage analysis
 - Comprehensive scoring with weighted metrics
 
-### Report Generation
-- **Combined Report**: Single DOCX containing all student evaluations
-- **Individual Reports**: Separate DOCX file for each student (named by student name)
-- **Smart Download System**: 
-  - 10 or fewer students: Individual download buttons
-  - More than 10 students: ZIP file download
-- **Azure Backup**: Combined reports automatically saved to Azure for safety
-
-### Storage System
-- **Azure Blob Storage**: Primary storage for all files
-- **Automatic Upload**: All uploaded files saved to Azure immediately
-- **Cloud-Only Processing**: All generated content (questions, diagrams, documents) stored exclusively in Azure
-- **Local Fallback**: Only used if Azure is not configured
-
-## Troubleshooting
 
 ### Common Issues
 
