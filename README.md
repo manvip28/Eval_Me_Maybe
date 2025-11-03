@@ -40,22 +40,6 @@ Docker installation automatically includes all dependencies and system tools (Po
 - Docker (version 20.10 or higher)
 - Docker Compose (version 2.0 or higher)
 
-### Quick Start
-
-1. **Build and run with Docker Compose:**
-   ```bash
-   # Build and start the container
-   docker-compose up -d
-   
-   # View logs
-   docker-compose logs -f
-   
-   # Stop the container
-   docker-compose down
-   ```
-
-2. **Access the application:**
-   Open your browser and go to: `http://localhost:8501`
 
 ### Using Pre-built Docker Image (From Docker Hub)
 
