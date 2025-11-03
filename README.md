@@ -157,13 +157,7 @@ If you prefer to install manually (without Docker):
 pip install -r requirements.txt
 ```
 
-### 2. Install CLIP from GitHub
-
-```bash
-pip install git+https://github.com/openai/CLIP.git
-```
-
-### 3. Environment Variables & API Keys
+### 2. Environment Variables & API Keys
 
 Create a `.env` file in the project root with your API keys:
 
