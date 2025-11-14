@@ -1,416 +1,215 @@
-# AI-Powered Question Generation and Answer Evaluation System
+# AI-Powered Question Generation & Answer Evaluation System
 
-An intelligent system that generates educational questions from textbooks and evaluates student answers using AI models. 
+[![Docker Pulls](https://img.shields.io/docker/pulls/manvip28/majorproject-app)](https://hub.docker.com/r/manvip28/majorproject-app)
+![Python Version](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+![Status](https://img.shields.io/badge/Status-Active-success.svg)
+![Contributions](https://img.shields.io/badge/Contributions-Welcome-orange.svg)
 
-## Features
-
-### Core Features
-- **Question Generation**: Generate questions from PDF/DOCX textbooks using Mistral AI
-- **Answer Generation**: Automatically generate answers for created questions
-- **Answer Evaluation**: Evaluate student answers against answer keys with comprehensive scoring
-- **Image Processing**: Extract and analyze images/diagrams from documents using Azure AI Vision
-- **Bloom's Taxonomy**: Categorize questions by cognitive levels (Remember, Understand, Apply, Analyze, Evaluate, Create)
-- **Manual Review**: Review and approve generated questions before final document generation
-- **Interactive Interfaces**: Both CLI and Streamlit web interfaces
-
-### Storage & Cloud Features
-- **Azure Blob Storage Integration**: All files (textbooks, generated questions, diagrams, documents) stored in Azure cloud
-- **Automatic Cloud Backup**: Combined evaluation reports automatically backed up to Azure
-- **No Local Storage**: All generated content exclusively uses Azure Blob Storage (no local files)
-
-### Report Generation
-- **Combined Report**: Generate a single DOCX report with all student evaluations
-- **Individual Reports**: Generate separate DOCX reports for each student (with filename as student name)
-- **Smart Download**: 
-  - ≤10 students: Individual download buttons for each report
-  - >10 students: ZIP file download
-- **Automatic Backup**: Combined reports saved to Azure for safety
-
-## Setup
-
-You can install the application using **Docker** (recommended) or **manual installation**. Docker automatically includes all dependencies including Poppler.
+An AI-powered system that generates exam questions from textbooks and evaluates student answers using NLP, OCR, image comparison, and Bloom's Taxonomy. Built with Mistral (via OpenRouter), Azure AI Vision, Sentence Transformers, and CLIP. Supports full cloud storage via Azure Blob.
 
 ---
 
-## 🐳 Installation with Docker (Recommended)
+## ✨ Features
 
-Docker installation automatically includes all dependencies and system tools (Poppler, etc.) - no manual setup needed!
+### 🔹 Question & Answer Generation
+- Generate questions from PDF/DOCX using Mistral AI
+- Auto-generate detailed answers
+- Extract text & diagrams using Azure AI Vision
+- Tag questions with Bloom's Taxonomy
+- Approve or reject generated questions via UI
+- Generate question paper & answer key (DOCX)
 
-### Prerequisites
-- Docker (version 20.10 or higher)
-- Docker Compose (version 2.0 or higher)
+### 🔹 AI-Based Answer Evaluation
+- Evaluate student answers against generated keys
+- Multi-stage scoring:
+  - Semantic similarity (SBERT)
+  - Keyword matching
+  - Bloom's Taxonomy validation
+  - Image comparison (CLIP)
+- Accept multiple student answer uploads
+- Generate per-student or combined DOCX reports
 
+### 🔹 Cloud & Storage
+- Azure Blob Storage for:
+  - Textbooks
+  - Answer keys
+  - Student uploads
+  - Generated documents
+- Automatic cloud backup
+- No local files required
 
-### Using Pre-built Docker Image (From Docker Hub)
+### 🔹 Interfaces
+- Full Streamlit web UI
+- Command-line interface (CLI)
 
-If you prefer to use a pre-built Docker image instead of building locally, the app is available on Docker Hub.
+---
 
-#### Steps to Run with Pre-built Image
+## 📦 Installation Options
 
-1. **Pull the image:**
-   ```bash
-   docker pull manvip28/majorproject-app:latest
-   ```
+You can install via:
+1. **Docker Compose (Recommended)**
+2. **Pre-built Docker Image (Docker Hub)**
+3. **Manual Installation**
 
-2. **Run the container with environment variables:**
+---
 
-   **Option 1: Using .env file (Recommended)**
-   ```bash
-   docker run -d \
-     -p 8501:8501 \
-     --env-file .env \
-     --name ai-question-generator \
-     manvip28/majorproject-app:latest
-   ```
+## 🐳 1. Docker Installation (Recommended)
 
-   **Option 2: Set environment variables directly**
-   ```bash
-   docker run -d \
-     -p 8501:8501 \
-     -e OPENROUTER_API_KEY=your_key \
-     -e AZURE_AI_VISION_ENDPOINT=your_endpoint \
-     -e AZURE_AI_VISION_KEY=your_key \
-     -e AZURE_STORAGE_CONNECTION_STRING=your_connection_string \
-     -e AZURE_CONTAINER_NAME=your_container \
-     -e STORAGE_TYPE=blob \
-     --name ai-question-generator \
-     manvip28/majorproject-app:latest
-   ```
+Includes all system dependencies (Poppler, Tesseract, NLTK data, spaCy model, CLIP downloads).
 
-3. **Access the application:**
-   Open your browser and go to: `http://localhost:8501`
-
-4. **View logs:**
-   ```bash
-   docker logs -f ai-question-generator
-   ```
-
-5. **Stop the container:**
-   ```bash
-   docker stop ai-question-generator
-   docker rm ai-question-generator
-   ```
-
-#### Important Notes
-
-⚠️ **Requirements:**
-- Docker must be installed on your system
-- No need to install Python, dependencies, or Poppler manually — everything is included in the Docker image
-- You must provide your own `.env` file or environment variables with API keys and Azure credentials
-
-⚠️ **Environment Variables Required:**
-- `OPENROUTER_API_KEY` - Your OpenRouter API key
-- `AZURE_AI_VISION_ENDPOINT` - Your Azure AI Vision endpoint
-- `AZURE_AI_VISION_KEY` - Your Azure AI Vision key
-- `AZURE_STORAGE_CONNECTION_STRING` - Your Azure Storage connection string
-- `AZURE_CONTAINER_NAME` - Your Azure container name
-- `STORAGE_TYPE=blob` - Set to "blob" for Azure storage
-
-> **Note:** The pre-built image includes all dependencies (Python packages, Poppler, Tesseract, spaCy model, NLTK data, CLIP) — no manual setup needed!
-
-### What's Included in Docker
-
-✅ **All Python dependencies** (PyTorch, CLIP, spaCy, etc.)  
-✅ **System dependencies** (Poppler for PDF processing, Tesseract OCR)  
-✅ **Pre-configured models:**
-   - spaCy English model (`en_core_web_sm`)
-   - NLTK data (punkt tokenizer, stopwords)
-   - CLIP model (downloads on first use)
-   - Sentence Transformer models (download on first use)
-
-✅ **No manual setup needed** - Everything is pre-configured!
-
-### Docker Commands (Local Build)
+### Build and Run
 
 ```bash
-# Build the image
 docker-compose build
-
-# Start the application
 docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop the application
-docker-compose down
-
-# Rebuild from scratch (if needed)
-docker-compose build --no-cache
 ```
 
-### Docker Notes
+**Access the app:** http://localhost:8501
 
-- **Azure Storage**: All files are stored in Azure Blob Storage (cloud) - no local volume mounts needed
-- **Session State**: Streamlit session state is in-memory (ephemeral) - no volume mounts needed
-- **Stateless Container**: Container is completely stateless - all data in Azure cloud
+**Logs:**
+```bash
+docker-compose logs -f
+```
 
 ---
 
-## 📦 Manual Installation
+## 🐋 2. Pre-Built Docker Image (Docker Hub)
 
-If you prefer to install manually (without Docker):
+### Pull the image
+```bash
+docker pull manvip28/majorproject-app:latest
+```
 
-### 1. Install Python Dependencies
+### Run with .env file
+```bash
+docker run -d \
+  -p 8501:8501 \
+  --env-file .env \
+  --name ai-question-engine \
+  manvip28/majorproject-app:latest
+```
 
+### Run by passing variables directly
+```bash
+docker run -d \
+  -p 8501:8501 \
+  -e OPENROUTER_API_KEY=your_key \
+  -e AZURE_AI_VISION_ENDPOINT=your_endpoint \
+  -e AZURE_AI_VISION_KEY=your_key \
+  -e AZURE_STORAGE_CONNECTION_STRING=your_conn \
+  -e AZURE_CONTAINER_NAME=your_container \
+  -e STORAGE_TYPE=blob \
+  manvip28/majorproject-app:latest
+```
+
+### Stop & remove
+```bash
+docker stop ai-question-engine && docker rm ai-question-engine
+```
+
+---
+
+## 🖥️ 3. Manual Installation (Without Docker)
+
+### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Environment Variables & API Keys
-
-Create a `.env` file in the project root with your API keys:
-
+### 2. Create .env
 ```env
-# API Keys - Add your actual keys here
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-AZURE_AI_VISION_KEY=your_azure_ai_vision_key_here
-AZURE_AI_VISION_ENDPOINT=your_azure_ai_vision_endpoint_here
-
-# Azure Blob Storage Configuration
+OPENROUTER_API_KEY=your_key
+AZURE_AI_VISION_KEY=your_key
+AZURE_AI_VISION_ENDPOINT=your_endpoint
+AZURE_STORAGE_CONNECTION_STRING=your_conn
+AZURE_CONTAINER_NAME=your_container
 STORAGE_TYPE=blob
-AZURE_STORAGE_CONNECTION_STRING=your_azure_storage_connection_string_here
-AZURE_CONTAINER_NAME=your_container_name_here
-
-# Optional: Other configuration
-DEFAULT_MODEL=mistralai/mistral-7b-instruct
-DEFAULT_TEMPERATURE=0.7
-
-# Optional: Poppler path (Windows only - uncomment and update if Poppler is not in PATH)
-# POPPLER_PATH=C:\poppler\Library\bin
 ```
 
-#### How to Get API Keys
-
-#### OpenRouter API Key
-1. Go to [OpenRouter](https://openrouter.ai/)
-2. Sign up and get your API key
-3. Add it to your `.env` file
-
-#### Azure AI Vision Key
-1. Go to [Azure Portal](https://portal.azure.com/)
-2. Create a Computer Vision resource
-3. Get your endpoint and key
-4. Add them to your `.env` file
-
-#### Azure Blob Storage (Required for Cloud Storage)
-1. Go to [Azure Portal](https://portal.azure.com/)
-2. Create a Storage Account
-3. Create a Blob Container (or use existing one)
-4. Get your Storage Account connection string from "Access keys"
-5. Add to your `.env` file:
-   - `STORAGE_TYPE=blob`
-   - `AZURE_STORAGE_CONNECTION_STRING=your_connection_string`
-   - `AZURE_CONTAINER_NAME=your_container_name`
-
-**Note:** If you don't configure Azure Blob Storage, the system will use local storage. However, for full functionality and cloud backup, Azure Blob Storage is recommended.
-
-### 5. Install PDF Processing Tools (Manual Installation Only)
-
-> **Note:** If you're using Docker, skip this section - Poppler and Tesseract are already included!
-
-The project uses PDF processing tools that require separate installation.
-
-
-#### Poppler (for PDF to Image Conversion)
-
-Poppler is required for converting PDF pages to images. It's used by the `pdf2image` library.
+### 3. Install Poppler
 
 **Windows:**
-1. Download Poppler for Windows from [GitHub](https://github.com/oschwartz10612/poppler-windows/releases/)
-2. Download the latest release (e.g., `Release-XX.XX.X-X.zip`)
-3. Extract the zip file to a location like:
-   - `C:\poppler`
-   - `C:\Program Files\poppler`
-   - Or any folder you prefer
-4. Remember the path to the `bin` folder inside the extracted directory (e.g., `C:\poppler\Library\bin`)
-5. **Option 1 - Add to PATH:**
-   - Open "Environment Variables" in System Properties
-   - Add the `bin` folder to your PATH variable (e.g., `C:\poppler\Library\bin`)
-6. **Option 2 - Set in .env file (recommended for this project):**
-   - Add to your `.env` file: `POPPLER_PATH=C:\poppler\Library\bin`
-   - Update the path in `extractor/parse.py` if needed (line 14)
-   - Or update `extractor/handle_pdf.py` if using it directly (line 49)
+- Download Poppler: https://github.com/oschwartz10612/poppler-windows/releases/
+- Set path: `POPPLER_PATH=C:\poppler\Library\bin`
 
 **macOS:**
 ```bash
 brew install poppler
 ```
-Poppler will be automatically available after installation via Homebrew.
 
-**Linux (Ubuntu/Debian):**
+**Linux:**
 ```bash
-sudo apt-get update
-sudo apt-get install poppler-utils
+sudo apt install poppler-utils
 ```
 
-**Linux (Fedora):**
-```bash
-sudo dnf install poppler-utils
-```
-
-**Note:** On Windows, you may need to manually set the Poppler path in the code if it's not in your system PATH. The default path used in this project is `C:\poppler-25.07.0\Library\bin` (or similar version). Update the `POPPLER_PATH` variable in `extractor/parse.py` to match your installation location.
-
-**Verification:**
-After installation, verify that the tools are accessible:
-
-```bash
-
-# Check Poppler (if in PATH)
-pdftoppm -h
-# OR on Windows, if not in PATH:
-# C:\poppler\Library\bin\pdftoppm.exe -h
-```
-
-**Troubleshooting Poppler on Windows:**
-- If you get "poppler not found" errors, ensure the path points to the `bin` folder (not the root poppler folder)
-- The path should end with `\Library\bin` or `\bin` depending on your extraction location
-- You can test the path by running: `C:\poppler\Library\bin\pdftoppm.exe -h` (replace with your actual path)
-- If errors persist, try adding the full path to `extractor/parse.py` line 14
-
-### 6. Download Python Models and Data (Manual Installation Only)
-
-> **Note:** If you're using Docker, skip this section - Models are already downloaded during build!
-
-**Important:** While `spacy` and `nltk` are installed via `requirements.txt`, their models and data need to be downloaded separately.
-
-#### spaCy English Model
-
-The `spacy` library is in `requirements.txt`, but the English language model must be downloaded separately:
-
+### 4. Install spaCy model
 ```bash
 python -m spacy download en_core_web_sm
 ```
 
-**Why separate?** The spaCy library (the framework) is installed via pip, but language models are separate packages that need to be downloaded using spaCy's download command.
-
-**Alternative (if the above doesn't work):**
-```bash
-# Download and install directly via pip
-pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-```
-
-#### NLTK Data
-
-The `nltk` library is in `requirements.txt`, but the data files (punkt tokenizer and stopwords) are not included in the pip package. They download automatically on first use, but it's recommended to download them manually first:
-
+### 5. Install NLTK data
 ```bash
 python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 ```
 
-**Why separate?** NLTK stores its data separately from the library code. The code will auto-download on first run, but manual download ensures they're available immediately.
+---
 
-## Usage
+## 🚀 Usage
 
-### CLI Interface
-
-Run the command-line interface:
-
+### CLI
 ```bash
 python main.py
 ```
 
-This will show a menu with options:
-1. **Generate Questions from Textbook**: Upload a textbook and generate questions
-2. **Upload Answer Key**: Upload and process answer key files
-3. **Upload Student Answer**: Upload and process student answer files
-4. **Evaluate Student Answer**: Evaluate student answers against answer keys
-
-### Streamlit Interface
-
-Run the Streamlit web application:
-
+### Streamlit App
 ```bash
 streamlit run app.py
 ```
 
-This will launch a web interface with the following features:
+---
 
-#### Question Generation Page
-- **📤 Upload PDF/DOCX**: Upload your textbook file (automatically saved to Azure)
-- **🚀 Generate Questions**: Start the question generation process
-- **✅ Approve/❌ Reject**: Review and approve questions before document generation
-- **📄 Generate Question Paper**: Generate final question paper DOCX document
-- **📄 Generate Answer Key**: Generate final answer key DOCX document
-- **📥 Download Question Paper**: Download the generated question paper
-- **📥 Download Answer Key**: Download the generated answer key
-- **🔄 Regenerate Documents**: Regenerate documents if needed
-
-#### Answer Evaluation Page
-- **📋 Upload Answer Key**: Upload answer key file (JSON or DOCX)
-- **📝 Upload Student Answer(s)**: Upload one or more student answer files
-- **📊 Evaluate Answers**: Start evaluation process
-- **📄 Generate & Download Combined Report**: Generate single DOCX with all students
-- **📄 Generate & Download Individual Reports**: Generate separate DOCX files for each student
-- **📥 Download All Student Reports**: 
-  - If ≤10 students: Individual download buttons for each report
-  - If >10 students: Download as ZIP file
-
-## Project Structure
+## 📁 Project Structure
 
 ```
-├── generation/                 # Question generation pipeline
-│   ├── pipeline.py            # Main generation pipeline
-│   ├── question_generation/   # Question generation modules
-│   └── utils/                 # Utility functions (image extraction, association)
-├── extractor/                 # Document extraction
-├── evaluator/                 # Answer evaluation
-│   ├── answer_evaluator.py    # Main evaluation logic
-│   ├── report_generator.py    # DOCX report generation
-│   └── clip_image_compare.py # Image comparison using CLIP
-├── storage/                    # Storage abstraction layer
-│   ├── storage_client.py      # Azure Blob Storage and Local storage client
-│   └── __init__.py           # Storage exports
-├── streamlit_app/             # Streamlit web application
-│   ├── utils/
-│   │   ├── pages/            # Page components
-│   │   ├── pipeline/         # Pipeline integration
-│   │   ├── evaluation/       # Evaluation UI components
-│   │   ├── document/         # Document generation
-│   │   └── file/             # File upload handlers
-│   └── app.py                # Streamlit app entry point
-├── input/                     # Input documents (legacy)
-├── output/                    # Generated outputs (legacy)
-├── local_uploads/            # Local file storage (fallback only)
-├── main.py                   # CLI application
-├── app.py                    # Streamlit application
-├── requirements.txt          # Dependencies
-└── .env                      # Environment variables (create this)
+generation/           # Question generation
+extractor/            # PDF/DOCX extraction
+evaluator/            # Answer evaluation + reports
+storage/              # Azure/local storage
+streamlit_app/        # Web UI
+main.py               # CLI entry
+app.py                # Streamlit entry
 ```
 
-### Azure Blob Storage Structure
+---
 
-All files are stored in Azure Blob Storage with the following structure:
+## ☁️ Azure Blob Storage Layout
+
 ```
-Azure Container/
-├── uploads/
-│   ├── textbook/            # Uploaded textbook files
-│   ├── answer_key/          # Uploaded answer key files
-│   └── student_answer/      # Uploaded student answer files
-├── answer_key_gen/
-│   ├── intermediate_questions.json    # Generated questions (before approval)
-│   ├── final_questions.json           # Approved questions
-│   ├── question_paper.docx            # Final question paper
-│   ├── final_answer_key.docx          # Final answer key
-│   └── diagrams/                      # Extracted diagrams/images
-│       └── diagram_*.png
-└── evaluation_reports/
-    └── combined_report_all_students.docx    # Combined evaluation report (backed up)
+uploads/
+  textbook/
+  answer_key/
+  student_answer/
+answer_key_gen/
+  final_questions.json
+  final_answer_key.docx
+  diagrams/
+evaluation_reports/
+  combined_report_all_students.docx
 ```
 
-## API Integration
+---
 
-### OpenRouter (Mistral AI)
-- Used for question and answer generation
-- Supports various models via OpenRouter API
-- Configurable model selection
+## 🔗 API Integrations
 
-### Azure AI Vision
-- Used for document analysis and image extraction
-- Extracts text and diagrams from documents
-- Supports PDF, DOCX, and image formats
+**OpenRouter (Mistral)**  
+Used for question and answer generation.
 
+**Azure AI Vision**  
+Used for document parsing, OCR, and diagram extraction.
 
-## License
+---
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 📜 License
+
+This project is licensed under the MIT License.
