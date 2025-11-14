@@ -47,14 +47,14 @@ An AI-powered system that generates exam questions from textbooks and evaluates 
 
 ## 📦 Installation Options
 
-You can install via:
-1. **Docker Compose (Recommended)**
-2. **Pre-built Docker Image (Docker Hub)**
-3. **Manual Installation**
+Choose based on your use case:
+1. **Pre-built Docker Image (Recommended for end users)** - Fastest setup
+2. **Docker Compose (Recommended for developers)** - Easy to modify
+3. **Manual Installation** - No Docker required
 
 ---
 
-## 🐳 1. Docker Installation (Recommended)
+## 🐳 1. Pre-built Docker Image (Recommended - Fastest Setup)
 
 Includes all system dependencies (Poppler, Tesseract, NLTK data, spaCy model, CLIP downloads).
 
@@ -74,7 +74,7 @@ docker-compose logs -f
 
 ---
 
-## 🐋 2. Pre-Built Docker Image (Docker Hub)
+### Pull and run the image
 
 ### Pull the image
 ```bash
