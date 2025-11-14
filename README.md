@@ -1,6 +1,6 @@
 # AI-Powered Question Generation and Answer Evaluation System
 
-An intelligent system that generates educational questions from textbooks and evaluates student answers using AI models.
+An intelligent system that generates educational questions from textbooks and evaluates student answers using AI models. 
 
 ## Features
 
