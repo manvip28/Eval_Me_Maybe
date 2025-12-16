@@ -12,7 +12,7 @@ An AI-powered system that generates exam questions from textbooks and evaluates 
 
 ## 🎥 Project Demo
 
-https://github.com/user-attachments/assets/6d4bb2bd-9432-4db5-8247-ee6bf8ec0822
+https://github.com/user-attachments/assets/3374a5b6-1f5b-403a-88ae-0ebacfeea8fc
 
 
 ## ✨ Features
