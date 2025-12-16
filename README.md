@@ -10,6 +10,11 @@ An AI-powered system that generates exam questions from textbooks and evaluates 
 
 ---
 
+## 🎥 Project Demo
+
+https://github.com/user-attachments/assets/6d4bb2bd-9432-4db5-8247-ee6bf8ec0822
+
+
 ## ✨ Features
 
 ### 🔹 Question & Answer Generation
@@ -87,19 +92,6 @@ docker run -d \
   -p 8501:8501 \
   --env-file .env \
   --name ai-question-engine \
-  manvip28/majorproject-app:latest
-```
-
-### Run by passing variables directly
-```bash
-docker run -d \
-  -p 8501:8501 \
-  -e OPENROUTER_API_KEY=your_key \
-  -e AZURE_AI_VISION_ENDPOINT=your_endpoint \
-  -e AZURE_AI_VISION_KEY=your_key \
-  -e AZURE_STORAGE_CONNECTION_STRING=your_conn \
-  -e AZURE_CONTAINER_NAME=your_container \
-  -e STORAGE_TYPE=blob \
   manvip28/majorproject-app:latest
 ```
 
