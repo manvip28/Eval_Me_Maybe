@@ -87,7 +87,7 @@ def handle_file_upload(uploaded_file, file_type: str) -> Optional[str]:
                             raise Exception(f"Blob storage write failed - file does not exist after upload")
                         
                         # Show simple success message
-                        st.success("File uploaded successfully!")
+                        # st.success("File uploaded successfully!")
                         
                         return blob_path  # Return blob path as primary path
                     except Exception as blob_error:
