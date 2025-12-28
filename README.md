@@ -63,22 +63,6 @@ Choose based on your use case:
 
 Includes all system dependencies (Poppler, Tesseract, NLTK data, spaCy model, CLIP downloads).
 
-### Build and Run
-
-```bash
-docker-compose build
-docker-compose up -d
-```
-
-**Access the app:** http://localhost:8501
-
-**Logs:**
-```bash
-docker-compose logs -f
-```
-
----
-
 ### Pull and run the image
 
 ### Pull the image
@@ -94,13 +78,6 @@ docker run -d \
   --name ai-question-engine \
   manvip28/majorproject-app:latest
 ```
-
-### Stop & remove
-```bash
-docker stop ai-question-engine && docker rm ai-question-engine
-```
-
----
 
 ## 🖥️ 3. Manual Installation (Without Docker)
 
